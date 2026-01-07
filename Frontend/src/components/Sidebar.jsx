@@ -10,8 +10,8 @@ const Sidebar = ({ selectedUser, setSelectedUser }) => {
                 <div className='flex justify-between items-center'>
                     <img src={assets.logo} alt="Logo" className='max-w-40' />
                     <div className='relative group'>
-                        <img src={assets.menu_icon} alt="Menu" className='h-7 w-7 cursor-pointer p-2' />
-                        <div className='absolute top-0 right-0 pt-11 z-20 hidden
+                        <img src={assets.menu_icon} alt="Menu" className='h-5 w-5 cursor-pointer' />
+                        <div className='absolute top-0 right-0 pt-8 z-20 hidden
                     group-hover:block'>
                             <div className='w-32 p-5 rounded-md bg-[#282142] border border-gray-600 text-gray-100'>
                                 <p onClick={() => navigate('/profile')} className='cursor-pointer text-sm'>Edit Profile</p>
@@ -22,7 +22,7 @@ const Sidebar = ({ selectedUser, setSelectedUser }) => {
                     </div>
                 </div>
 
-                <div className='bg-[#282142] rounded-full flex items-center gap-2 py-3 px-4mt-5'>
+                <div className='bg-[#282142] rounded-full flex items-center gap-2 py-3 px-4 mt-5'>
                     <img src={assets.search_icon} alt="Search" className="w-3" />
                     <input type="text" className=' bg-transparent border-none outline-none
                      text-white text-xs placeholder-[#c8c8c8] flex-1' placeholder='Search User...' />
