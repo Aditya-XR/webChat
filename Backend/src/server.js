@@ -36,6 +36,7 @@ connectDB()
 import userRouter from "./routes/user.routes.js";
 
 app.use("/api/v1/users", userRouter);
+//http://localhost:5000/api/v1/users/
 
 
 export default app;
