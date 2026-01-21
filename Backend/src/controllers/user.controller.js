@@ -5,10 +5,25 @@ import { ApiResponse } from "../utils/ApiResponse.js";
 import bcrypt from "bcrypt"
 import { generateToken } from "../utils/functions.js";
 
+const generateAccessAndRefreshTokens = async (UserId) => {
+  try {
+      const user = await User.findById(UserId);
+      const accessToken = user.generateAccessToken();
+      const refreshToken = user.generateRefreshToken();
+
+      //storing refresh token in db
+      user.refreshToken = refreshToken;
+      await user.save({validateBeforeSave: false});
+
+      return { accessToken, refreshToken };
+  } catch (error) {
+      throw new ApiError(500, "Error generating access and refresh tokens //user.controller.js");
+  }
+}
+
 const signUp = asyncHandler(async (req, res) => {
   const { email, fullName, bio, password } = req.body;
 
-  try {
     // Required field validation
     const requiredFields = { email, fullName, password };
 
@@ -62,16 +77,10 @@ const signUp = asyncHandler(async (req, res) => {
     return res.status(201).json(
         new ApiResponse(201, createduser, "User registered successfully")
     );
-  } catch (error) {
-    throw new ApiError(
-      error.statusCode || 500,
-      error.message || "Internal Server Error //user.controller.js",
-    );
-  }
+  
 });
 
 const login = asyncHandler(async (req, res) => {
-  try {
     const {email, password} = req.body;
 
     // Validate input
@@ -89,15 +98,15 @@ const login = asyncHandler(async (req, res) => {
     console.log("User found: ", user._id);
 
     //password validation
-    const isPasswordCorrect = await bcrypt.compare(password, user.password);
+    const isPasswordCorrect = await user.isPasswordCorrect(password);
     if(!isPasswordCorrect){
       throw new ApiError(401, "Invalid email or password //user.controller.js");
     }
     console.log("User authenticated successfully: ", user._id);
 
-    const token = generateToken(user._id);
+    const {accessToken, refreshToken} = await generateAccessAndRefreshTokens(user._id);
     const loggedInUser = await User.findById(user._id).select(
-        "-password -token"
+        "-password -refreshToken"
     );
     console.log("Logged in user data prepared: ", loggedInUser);
 
@@ -108,21 +117,17 @@ const login = asyncHandler(async (req, res) => {
 
    return res
         .status(200)
-        .cookie("token", token, options)
+        .cookie("accessToken", accessToken, options)
+        .cookie("refreshToken", refreshToken, options)
         .json(
             new ApiResponse(200,
               {
-                user: loggedInUser,token
+                user: loggedInUser,accessToken, refreshToken
               },
                 "User logged in successfully"
             )
         );  
-  } catch (error) {
-    throw new ApiError(
-      error.statusCode || 500,
-      error.message || "Internal Server Error //user.controller.js",
-    );
-  }
+  
 })
 
 export { 
