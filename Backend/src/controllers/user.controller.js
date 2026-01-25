@@ -3,7 +3,6 @@ import { ApiError } from "../utils/ApiError.js";
 import User from "../models/user.model.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import bcrypt from "bcrypt"
-import { generateToken } from "../utils/functions.js";
 
 const generateAccessAndRefreshTokens = async (UserId) => {
   try {
@@ -71,8 +70,6 @@ const signUp = asyncHandler(async (req, res) => {
       throw new ApiError(500, "User registration failed, please try again");
     }
 
-    // Generate JWT token
-    const token = generateToken(newUser._id);
     // Send response
     return res.status(201).json(
         new ApiResponse(201, createduser, "User registered successfully")
@@ -130,7 +127,36 @@ const login = asyncHandler(async (req, res) => {
   
 })
 
+const logout = asyncHandler(async (req, res) => {
+  await User.findByIdAndUpdate(
+        req.user._id,
+        {
+            $set: {
+                refreshToken: undefined
+            }
+
+        },
+        {
+            new: true
+        }
+    )
+
+    const options = {
+        httpOnly: true,
+        secure: true,
+        expires: new Date(0) // Expire the cookie immediately
+    }
+    return res
+        .status(200)
+        .clearCookie("accessToken", options)
+        .clearCookie("refreshToken", options)
+        .json(
+            new ApiResponse(200, null, "User logged out successfully")
+        );
+})
+
 export { 
   signUp,
-  login
+  login,
+  logout
  };

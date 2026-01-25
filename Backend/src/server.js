@@ -3,6 +3,7 @@ import 'dotenv/config'
 import cors from "cors";
 import * as http from "node:http";
 import connectDB from "./database/db.js";
+import cookieParser from "cookie-parser";
 
 //creating Express app and HTTP server
 const app = express();
@@ -14,6 +15,7 @@ app.use(cors({
     origin: process.env.CORS_ORIGIN,
     credentials: true
 }));
+app.use(cookieParser());
 
 app.use("/api/status", (req, res) => res.send("Server is running"));
 
@@ -34,7 +36,6 @@ connectDB()
 
 //routes import
 import userRouter from "./routes/user.routes.js";
-
 app.use("/api/v1/users", userRouter);
 //http://localhost:5000/api/v1/users/
 
