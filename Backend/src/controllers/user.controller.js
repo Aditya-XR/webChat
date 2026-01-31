@@ -2,6 +2,7 @@ import { asyncHandler } from "../utils/asynchHandler.js";
 import { ApiError } from "../utils/ApiError.js";
 import User from "../models/user.model.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
+import { uploadOnCloudinary } from "../utils/cloudinary.js";
 import bcrypt from "bcrypt"
 
 const generateAccessAndRefreshTokens = async (UserId) => {
@@ -79,7 +80,7 @@ const signUp = asyncHandler(async (req, res) => {
 
 const login = asyncHandler(async (req, res) => {
     const {email, password} = req.body;
-
+    console.log(req.body)
     // Validate input
     if (typeof email !== "string" || email.trim().length === 0) {
       throw new ApiError(400, "Email is required and must be a string //user.controller.js");
@@ -92,14 +93,13 @@ const login = asyncHandler(async (req, res) => {
     if(!user){
       throw new ApiError(401, "Invalid email or password //user.controller.js");
     }
-    console.log("User found: ", user._id);
 
     //password validation
     const isPasswordCorrect = await user.isPasswordCorrect(password);
     if(!isPasswordCorrect){
       throw new ApiError(401, "Invalid email or password //user.controller.js");
     }
-    console.log("User authenticated successfully: ", user._id);
+
 
     const {accessToken, refreshToken} = await generateAccessAndRefreshTokens(user._id);
     const loggedInUser = await User.findById(user._id).select(
@@ -155,8 +155,52 @@ const logout = asyncHandler(async (req, res) => {
         );
 })
 
+const updateProfile = asyncHandler(async (req, res) => {
+      const { bio, fullName } = req.body;
+      const UserId = req.user._id;
+
+      // Build update object with only provided fields
+      const updateFields = {};
+      if (bio !== undefined) updateFields.bio = bio;
+      if (fullName !== undefined) updateFields.fullName = fullName;
+
+      // Check if file was uploaded via multer
+      const localFilePath = req.file?.path;
+
+      if(localFilePath) {
+        // Upload to cloudinary
+        const cloudinaryUrl = await uploadOnCloudinary(localFilePath);
+        if(!cloudinaryUrl) {
+          throw new ApiError(500, "Error uploading profile picture to cloudinary");
+        }
+        updateFields.profilePic = cloudinaryUrl;
+      }
+
+      // Only update if there are fields to update
+      if(Object.keys(updateFields).length === 0) {
+        throw new ApiError(400, "No fields to update");
+      }
+
+      const updatedUser = await User.findByIdAndUpdate(
+        UserId, 
+        { $set: updateFields },
+        { new: true }
+      ).select("-password -refreshToken");
+
+      if(!updatedUser){
+        throw new ApiError(500, "Error updating user profile //user.controller.js");
+      }
+
+      return res.
+      status(200).
+      json(
+        new ApiResponse(200, updatedUser, "User profile updated successfully")
+      );
+})
+
 export { 
   signUp,
   login,
-  logout
+  logout,
+  updateProfile
  };

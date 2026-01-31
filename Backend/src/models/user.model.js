@@ -24,6 +24,11 @@ const userSchema = new Schema(
             maxlength: 160,
             default: ""
         },
+        profilePic:
+        {
+            type: String,
+            default: ""
+        },
         password:
         {
             type: String,
