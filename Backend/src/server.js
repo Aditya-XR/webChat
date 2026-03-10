@@ -4,10 +4,44 @@ import cors from "cors";
 import * as http from "node:http";
 import connectDB from "./database/db.js";
 import cookieParser from "cookie-parser";
+import userRouter from "./routes/user.routes.js";
+import messageRouter from "./routes/messageRoutes.js";
+import {Server} from "socket.io";
 
 //creating Express app and HTTP server
 const app = express();
 const server = http.createServer(app);
+
+// Initilizing socket.io server
+export const io = new Server(server, {
+    cors: {
+        origin: process.env.CORS_ORIGIN,
+    }
+});
+
+// Store online users in a Map for O(1) access
+export const userSocketMap = {}; // {userId: socketId}
+
+io.on("connection", (socket) => {
+    const userId = socket.handshake.query.userId;
+    console.log(`User connected: ${userId} with socket id: ${socket.id}`);
+
+    if(userId){
+        userSocketMap[userId] = socket.id;
+    }
+
+    // emit online users to all clients whenever a user connects or disconnects
+    io.emit("online-users", Object.keys(userSocketMap));
+
+    socket.on("disconnect", () => {
+        console.log(`User disconnected: ${userId} with socket id: ${socket.id}`);
+        if(userId){
+            delete userSocketMap[userId];
+        }
+        // emit updated online users to all clients
+        io.emit("online-users", Object.keys(userSocketMap));
+    });
+});
 
 //middleware setup
 app.use(express.json({limit: "5mb"}));
@@ -35,8 +69,8 @@ connectDB()
 
 
 //routes import
-import userRouter from "./routes/user.routes.js";
 app.use("/api/v1/users", userRouter);
+app.use("/api/v1/messages", messageRouter);
 //http://localhost:5000/api/v1/users/
 
 
