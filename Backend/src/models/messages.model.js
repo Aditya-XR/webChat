@@ -31,11 +31,13 @@ const messageSchema = new Schema(
     {timestamps: true}
 );
 
-messageSchema.pre("validate", function (next) {
-  if (!this.text.trim() && !this.image.trim()) {
-    return next(new Error("Message must contain text or an image."));
+messageSchema.pre("validate", function () {
+  const text = typeof this.text === "string" ? this.text.trim() : "";
+  const image = typeof this.image === "string" ? this.image.trim() : "";
+
+  if (!text && !image) {
+    throw new Error("Message must contain text or an image.");
   }
-  next();
 });
 
 //compounding indexes to optimize queries for fetching messages between two users and counting unseen messages for a user

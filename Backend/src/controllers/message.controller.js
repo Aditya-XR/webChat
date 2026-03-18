@@ -1,18 +1,24 @@
 import Message from "../models/messages.model.js";
 import User from "../models/user.model.js";
 import { asyncHandler } from "../utils/asynchHandler.js";
+import { ApiError } from "../utils/ApiError.js";
 import { uploadOnCloudinary } from "../utils/cloudinary.js";
 import { io, userSocketMap } from "../server.js";
 
-const getUsersFroSidebar = asyncHandler(async (req, res) => {
+const getUsersForSidebar = asyncHandler(async (req, res) => {
     const userId = req.user._id; // need to add auth middleware to get user from token
+    console.log("userId in getUsersForSidebar: ", userId);
     const filteredUser = await User.find({_id: {$ne: userId}}).select("-password -refreshToken");
+    console.log("filteredUser in getUsersForSidebar: ", filteredUser);
     
-    //cout unseen messages for each user
+    //count unseen messages for each user
     //the below code can be optimized further using aggregation pipeline
     const unseenMessages = {};
     const promises = filteredUser.map(async (user) =>{
-        const messages = await Message.find({senderId: user._id, receiverId: userId, seen: false});
+        const messages = await Message.find({
+            senderId: user._id, 
+            receiverId: userId,
+            seen: false});
         if(messages.length > 0){
             unseenMessages[user._id] = messages.length;
         }
@@ -23,18 +29,25 @@ const getUsersFroSidebar = asyncHandler(async (req, res) => {
 });
 
 const getMessages = asyncHandler(async(req, res) => {
-    
-    const myId = req.user._id; // need to add auth middleware to get user from token
+    const myId = req.user._id; // added by verifyJWT
+    const selectedUserId = req.params.id; // comes from route: /messages/:id
 
+    if (!selectedUserId) {
+        throw new ApiError(400, "User id is required in params");
+    }
+
+    //mark messages as seen (only those sent by selected user to me)
+    await Message.updateMany(
+        { senderId: selectedUserId, receiverId: myId, seen: false },
+        { $set: { seen: true } }
+    );
+//get all messages between me and selected user
     const messages = await Message.find({
         $or: [
-            {senderId: myId, receiverId: selectedUserId},
-            {senderId: selectedUserId, receiverId: myId}
+            { senderId: myId, receiverId: selectedUserId },
+            { senderId: selectedUserId, receiverId: myId }
         ]
-    })
-
-    //mark messages as seen
-    await Message.updateMany({senderId: selectedUserId, receiverId: myId}, {seen: true});
+    }).sort({ createdAt: 1 });
 
     res.status(200).json(messages);
 });
@@ -48,15 +61,19 @@ const markMessagesAsSeen = asyncHandler(async(req, res) => {
 
 //send message to selected user, this will be called from frontend when user sends a message to a particular user
 const sendMessage = asyncHandler(async(req, res) => {
-    const {text, image} = req.body;
+    const {text} = req.body;
     const receiverId = req.params.id; //id of the user to whom message is to be sent
     const senderId = req.user._id; // need to add auth middleware to get user from token
+    const localFilePath = req.file?.path;
 
     //uplode image if exists and get the url
     let imageUrl = "";
-    if(image){
-        const uploadedImageUrl = await uploadOnCloudinary(image);
-        imageUrl = uploadedImageUrl.secure_url;
+    if(localFilePath){
+        const uploadedImageUrl = await uploadOnCloudinary(localFilePath);
+        if(!uploadedImageUrl){
+            throw new ApiError(500, "Error uploading message image to cloudinary");
+        }
+        imageUrl = uploadedImageUrl;
     }
 
     const newMessage = await Message.create({
@@ -78,7 +95,7 @@ const sendMessage = asyncHandler(async(req, res) => {
 
 
 export{
-    getUsersFroSidebar,
+    getUsersForSidebar,
     getMessages,
     markMessagesAsSeen,
     sendMessage

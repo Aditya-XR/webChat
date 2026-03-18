@@ -80,7 +80,7 @@ const signUp = asyncHandler(async (req, res) => {
 
 const login = asyncHandler(async (req, res) => {
     const {email, password} = req.body;
-    console.log(req.body)
+    //console.log(req.body)
     // Validate input
     if (typeof email !== "string" || email.trim().length === 0) {
       throw new ApiError(400, "Email is required and must be a string //user.controller.js");
@@ -102,10 +102,13 @@ const login = asyncHandler(async (req, res) => {
 
 
     const {accessToken, refreshToken} = await generateAccessAndRefreshTokens(user._id);
+    if(!accessToken || !refreshToken){
+      throw new ApiError(500, "Error generating access and refresh tokens //user.controller.js");
+    }
     const loggedInUser = await User.findById(user._id).select(
         "-password -refreshToken"
     );
-    console.log("Logged in user data prepared: ", loggedInUser);
+    //console.log("Logged in user data prepared: ", loggedInUser);
 
     const options = {//cookie options -> only server can modify httpOnly
         httpOnly: true,
