@@ -2,14 +2,13 @@ import Message from "../models/messages.model.js";
 import User from "../models/user.model.js";
 import { asyncHandler } from "../utils/asynchHandler.js";
 import { ApiError } from "../utils/ApiError.js";
+import { ApiResponse } from "../utils/ApiResponse.js";
 import { uploadOnCloudinary } from "../utils/cloudinary.js";
-import { io, userSocketMap } from "../server.js";
+import { getIo, userSocketMap } from "../socket.js";
 
 const getUsersForSidebar = asyncHandler(async (req, res) => {
     const userId = req.user._id; // need to add auth middleware to get user from token
-    console.log("userId in getUsersForSidebar: ", userId);
     const filteredUser = await User.find({_id: {$ne: userId}}).select("-password -refreshToken");
-    console.log("filteredUser in getUsersForSidebar: ", filteredUser);
     
     //count unseen messages for each user
     //the below code can be optimized further using aggregation pipeline
@@ -24,8 +23,11 @@ const getUsersForSidebar = asyncHandler(async (req, res) => {
         }
     });
     await Promise.all(promises);
-    res.status(200)
-    .json({users: filteredUser, unseenMessages});   
+
+    const response = new ApiResponse(200, filteredUser, "Sidebar users fetched successfully");
+    response.unseenMessages = unseenMessages;
+
+    return res.status(200).json(response);
 });
 
 const getMessages = asyncHandler(async(req, res) => {
@@ -49,14 +51,18 @@ const getMessages = asyncHandler(async(req, res) => {
         ]
     }).sort({ createdAt: 1 });
 
-    res.status(200).json(messages);
+    return res
+        .status(200)
+        .json(new ApiResponse(200, messages, "Messages fetched successfully"));
 });
 
 //api to mark messages as seen when user opens the chat, this will be called from frontend when user opens the chat with a particular user
 const markMessagesAsSeen = asyncHandler(async(req, res) => {
     const {id} = req.params; //id of the user whose messages are to be marked as seen
     await Message.findByIdAndUpdate(id, {seen: true});
-    res.status(200).json({message: "Messages marked as seen"});
+    return res
+        .status(200)
+        .json(new ApiResponse(200, null, "Messages marked as seen"));
 });
 
 //send message to selected user, this will be called from frontend when user sends a message to a particular user
@@ -86,10 +92,12 @@ const sendMessage = asyncHandler(async(req, res) => {
     //emit the new message to the receiver if they are online
     const receiverSocketId = userSocketMap[receiverId];
     if(receiverSocketId){
-        io.to(receiverSocketId).emit("new-message", newMessage);
+        getIo().to(receiverSocketId).emit("newMessage", newMessage);
     }
 
-    res.status(201).json(newMessage);
+    return res
+        .status(201)
+        .json(new ApiResponse(201, newMessage, "Message sent successfully"));
 
 });
 

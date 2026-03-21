@@ -23,6 +23,8 @@ const generateAccessAndRefreshTokens = async (UserId) => {
 
 const signUp = asyncHandler(async (req, res) => {
   const { email, fullName, bio, password } = req.body;
+    const normalizedEmail = typeof email === "string" ? email.trim().toLowerCase() : "";
+    const normalizedFullName = typeof fullName === "string" ? fullName.trim() : "";
 
     // Required field validation
     const requiredFields = { email, fullName, password };
@@ -45,7 +47,7 @@ const signUp = asyncHandler(async (req, res) => {
       throw new ApiError(400, "bio must be a string //user.controller.js");
     }
 
-    const ExistingUser = await User.findOne({ email });
+    const ExistingUser = await User.findOne({ email: normalizedEmail });
     if (ExistingUser) {
       throw new ApiError(
         409,
@@ -58,8 +60,8 @@ const signUp = asyncHandler(async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, salt);
     // Create user
     const newUser = await User.create({
-      email: requiredFields.email,
-      fullName: requiredFields.fullName,
+      email: normalizedEmail,
+      fullName: normalizedFullName,
       bio: bio,
       password: hashedPassword,
     });
@@ -80,16 +82,17 @@ const signUp = asyncHandler(async (req, res) => {
 
 const login = asyncHandler(async (req, res) => {
     const {email, password} = req.body;
+    const normalizedEmail = typeof email === "string" ? email.trim().toLowerCase() : "";
     //console.log(req.body)
     // Validate input
-    if (typeof email !== "string" || email.trim().length === 0) {
+    if (typeof email !== "string" || normalizedEmail.length === 0) {
       throw new ApiError(400, "Email is required and must be a string //user.controller.js");
     }
     if (typeof password !== "string" || password.trim().length < 8) {
       throw new ApiError(400, "Password must be at least 8 characters long //user.controller.js");
     }
 
-    const user = await User.findOne({ email });
+    const user = await User.findOne({ email: normalizedEmail });
     if(!user){
       throw new ApiError(401, "Invalid email or password //user.controller.js");
     }
@@ -201,9 +204,16 @@ const updateProfile = asyncHandler(async (req, res) => {
       );
 })
 
+const getCurrentUser = asyncHandler(async (req, res) => {
+  return res
+    .status(200)
+    .json(new ApiResponse(200, req.user, "Current user fetched successfully"));
+})
+
 export { 
   signUp,
   login,
   logout,
-  updateProfile
+  updateProfile,
+  getCurrentUser
  };

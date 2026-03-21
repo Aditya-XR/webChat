@@ -1,8 +1,10 @@
-import React, { useState } from 'react'
+import React, { useContext, useEffect, useState } from 'react'
 import assets from '../assets/assets'
+import { AuthContext } from '../../context/AuthContext';
+import { useNavigate } from 'react-router-dom';
 
 const LoginPage = () => {
-
+  const navigate = useNavigate();
   const [currState, setCurrState] = useState("Sign up");
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
@@ -11,23 +13,42 @@ const LoginPage = () => {
   const [isDataSubmitted, setIsDataSubmitted] = useState(false);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
 
-  const onSubmitHandler = (event)=>{
+  const { authUser, login, updateProfile } = useContext(AuthContext);
+  const isBioStep = currState === "Sign up" && isDataSubmitted;
+
+  useEffect(() => {
+    if (authUser && localStorage.getItem("needsBioSetup") === "true") {
+      setCurrState("Sign up");
+      setIsDataSubmitted(true);
+    }
+  }, [authUser]);
+
+  const onSubmitHandler = async (event)=>{
     event.preventDefault();
 
-    if (!agreedToTerms) {
+    if (currState === "Sign up" && !isDataSubmitted && !agreedToTerms) {
       alert("You must agree to the terms of use & privacy policy.");
       return;
     }
-    if (currState === "Sign up") {
-      if (!isDataSubmitted) {
-        // First step of sign up (basic info)
+
+    if (currState === "Sign up" && !isDataSubmitted) {
+      const didCreateAccount = await login("Sign up", { fullName, email, password });
+      if (didCreateAccount) {
         setIsDataSubmitted(true);
-      } else {
-        // Final submission of sign up (including bio)
-        console.log("Signing up with:", { fullName, email, password, bio });
-        // Reset form or redirect as needed
       }
-  }
+      return;
+    }
+
+    if (isBioStep) {
+      const didUpdateBio = await updateProfile({ bio });
+      if (didUpdateBio) {
+        localStorage.removeItem("needsBioSetup");
+        navigate("/");
+      }
+      return;
+    }
+
+    await login("Login", { email, password });
 }
 
   return (
@@ -41,7 +62,7 @@ const LoginPage = () => {
         flex-col gap-6 rounded-lg shadow-lg'>
           <h2 className='font-medium text-2xl flex justify-between items-center'>
             {currState}
-            {isDataSubmitted && <img onClick={()=> setIsDataSubmitted(false)} src={assets.arrow_icon} alt="" className='w-5
+            {isDataSubmitted && !authUser && <img onClick={()=> setIsDataSubmitted(false)} src={assets.arrow_icon} alt="" className='w-5
              cursor-pointer'/>}
           </h2>
 
@@ -68,7 +89,7 @@ const LoginPage = () => {
           {
             currState === "Sign up" && isDataSubmitted && (
               <textarea onChange={(e)=>setBio(e.target.value)} value={bio}
-               placeholder='Provide a short bio about yourself' rows={4} className='p-2 border border-gray-500
+               placeholder='Provide a short bio about yourself' rows={4} required className='p-2 border border-gray-500
                rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500'></textarea>
             )
           }
@@ -77,28 +98,30 @@ const LoginPage = () => {
           text-white border-none text-sm font-light py-2 px-20 rounded-full
           cursor-pointer hover:from-purple-500 hover:to-violet-700
           transition-all duration-300'>
-            {currState === "Sign up" ? "Create Account" : "Login Now"}
+            {isBioStep ? "Update Bio" : currState === "Sign up" ? "Create Account" : "Login Now"}
           </button>
           
-          <div className='text-xs text-gray-300 flex gap-2 items-center
-          justify-center'>
-            <input 
-              type="checkbox" 
-              checked={agreedToTerms} 
-              onChange={(e) => setAgreedToTerms(e.target.checked)}
-              className='cursor-pointer'
-            />
-            <p>Agree to the terms of use & privacy policy</p>
-          </div>
+          {currState === "Sign up" && !isBioStep && (
+            <div className='text-xs text-gray-300 flex gap-2 items-center
+            justify-center'>
+              <input 
+                type="checkbox" 
+                checked={agreedToTerms} 
+                onChange={(e) => setAgreedToTerms(e.target.checked)}
+                className='cursor-pointer'
+              />
+              <p>Agree to the terms of use & privacy policy</p>
+            </div>
+          )}
 
-          <div className='flex flex-col gap-2'>
+          {!isBioStep && <div className='flex flex-col gap-2'>
             {currState === "Sign up" ? 
             (<p className='text-sm text-gray-600'>Already have an account? <span
                onClick={()=>{setCurrState("Login"); setIsDataSubmitted(false);}}
             className='font-medium text-violet-500 cursor-pointer'>Login here</span></p>)
              :
             (<p className='text-sm text-gray-600'>Create an account? <span onClick={()=> {setCurrState("Sign up"); setIsDataSubmitted(false);}} className='font-medium text-violet-500 cursor-pointer'>Click here</span></p>)}
-          </div>
+          </div>}
         </form>
     </div>
   )

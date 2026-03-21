@@ -1,4 +1,4 @@
-import { createContext } from "react";
+import { createContext, useEffect, useState } from "react";
 import axios from "axios";
 import {toast} from 'react-hot-toast';
 import { io } from "socket.io-client";
@@ -15,36 +15,76 @@ export const AuthProvider = ({ children }) => {
     const [onlineUsers, setOnlineUsers] = useState([]);
     const [socket, setSocket] = useState(null);
 
+    const setAuthenticatedSession = (user, accessToken) => {
+        setToken(accessToken);
+        localStorage.setItem("token", accessToken);
+        setAuthUser(user);
+        connectSocket(user);
+        axios.defaults.headers.common["Authorization"] = `Bearer ${accessToken}`;
+    };
+
     const checkAuth = async () => {
         try{
-            const { data } = await axios.get("/api/auth.check");
+            const { data } = await axios.get("/api/v1/users/me");
             if(data.success){
-                setAuthUser(data.user);
-                connectSocket(data.user);
+                setAuthUser(data.data);
+                connectSocket(data.data);
             }
         }catch(err){
-            toast.error(err.message || "Authentication check failed");
+            if (token) {
+                toast.error(err.response?.data?.message || err.message || "Authentication check failed");
+            }
         }
     }
 
-//login function
+    //login function
     const login = async (state, credentials) => {
+        const normalizedCredentials = {
+            ...credentials,
+            email: typeof credentials?.email === "string" ? credentials.email.trim() : credentials?.email,
+            fullName: typeof credentials?.fullName === "string" ? credentials.fullName.trim() : credentials?.fullName,
+        };
+
         try{
-            const { data } = await axios.post("/api/auth/${state}", credentials);
+            if (state === "Sign up") {
+                const signUpResponse = await axios.post("/api/v1/users/signUp", normalizedCredentials);
+                if (!signUpResponse.data.success) {
+                    toast.error(signUpResponse.data.message || "Signup failed");
+                    return false;
+                }
+
+                const loginResponse = await axios.post("/api/v1/users/login", {
+                    email: normalizedCredentials.email,
+                    password: normalizedCredentials.password,
+                });
+
+                if (!loginResponse.data.success) {
+                    toast.error(loginResponse.data.message || "Login failed");
+                    return false;
+                }
+
+                const accessToken = loginResponse.data.data?.accessToken;
+                const user = loginResponse.data.data?.user;
+                localStorage.setItem("needsBioSetup", "true");
+                setAuthenticatedSession(user, accessToken);
+                toast.success(signUpResponse.data.message || "Signup successful");
+                return true;
+            }
+
+            const { data } = await axios.post("/api/v1/users/login", normalizedCredentials);
             if(data.success){
-                setToken(data.token);
-                localStorage.setItem("token", data.token);
-                setAuthUser(data.user);
-                connectSocket(data.user);
-                axios.defaults.headers.common["Authorization"] = `Bearer ${data.token}`;
-                //axios.defaults.headers.common["token"] = data.token;
+                const accessToken = data.data?.accessToken;
+                const user = data.data?.user;
+                setAuthenticatedSession(user, accessToken);
                 toast.success("Login successful");
+                return true;
             }
-            else{
-                toast.error(data.message || "Login failed");
-            }
+
+            toast.error(data.message || "Login failed");
+            return false;
         } catch(err){
-            toast.error(err.message || "Login failed");
+            toast.error(err.response?.data?.message || err.message || "Login failed");
+            return false;
         }
     }
     
@@ -55,7 +95,7 @@ export const AuthProvider = ({ children }) => {
         setToken(null);
         setAuthUser(null);
         setOnlineUsers([]);
-        axios.defaults.headers.common["Authorization"] = "";
+        delete axios.defaults.headers.common["Authorization"];
         //axios.defaults.headers.common["token"] = null;
         toast.success("Logged out successfully");
         socket?.disconnect();
@@ -65,13 +105,30 @@ export const AuthProvider = ({ children }) => {
     //update profile function
     const updateProfile = async (body) => {
         try{
-            const { data } = await axios.put("/api/auth/update-profile", body);
-            if(data.success){
-                setAuthUser(data.user);
-                toast.success("Profile updated successfully");
+            const hasProfilePic = body?.profilePic instanceof File;
+            let payload = body;
+            let config = {};
+
+            if (hasProfilePic) {
+                payload = new FormData();
+                if (body.fullName !== undefined) payload.append("fullName", body.fullName);
+                if (body.bio !== undefined) payload.append("bio", body.bio);
+                payload.append("profilePic", body.profilePic);
+                config.headers = {
+                    "Content-Type": "multipart/form-data",
+                };
             }
+
+            const { data } = await axios.put("/api/v1/users/update-profile", payload, config);
+            if(data.success){
+                setAuthUser(data.data);
+                toast.success("Profile updated successfully");
+                return true;
+            }
+            return false;
         }catch(err){
-            toast.error("Failed to update profile");
+            toast.error(err.response?.data?.message || "Failed to update profile");
+            return false;
         }
     }
 
@@ -86,7 +143,7 @@ export const AuthProvider = ({ children }) => {
          newSocket.connect();
          setSocket(newSocket);
 
-         newSocket.on("getOnlineUsers", (users) => {
+         newSocket.on("online-users", (users) => {
              setOnlineUsers(users);
          });
     }
