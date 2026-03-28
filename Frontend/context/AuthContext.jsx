@@ -15,6 +15,16 @@ export const AuthProvider = ({ children }) => {
     const [onlineUsers, setOnlineUsers] = useState([]);
     const [socket, setSocket] = useState(null);
 
+    const clearAuthenticatedSession = () => {
+        localStorage.removeItem("token");
+        setToken(null);
+        setAuthUser(null);
+        setOnlineUsers([]);
+        delete axios.defaults.headers.common["Authorization"];
+        socket?.disconnect();
+        setSocket(null);
+    };
+
     const setAuthenticatedSession = (user, accessToken) => {
         setToken(accessToken);
         localStorage.setItem("token", accessToken);
@@ -31,6 +41,14 @@ export const AuthProvider = ({ children }) => {
                 connectSocket(data.data);
             }
         }catch(err){
+            const statusCode = err.response?.status;
+
+            if (statusCode === 401) {
+                clearAuthenticatedSession();
+                toast.error(err.response?.data?.message || "Session expired. Please login again.");
+                return;
+            }
+
             if (token) {
                 toast.error(err.response?.data?.message || err.message || "Authentication check failed");
             }
@@ -91,15 +109,8 @@ export const AuthProvider = ({ children }) => {
 
     //logout function
     const logout = () => {
-        localStorage.removeItem("token");
-        setToken(null);
-        setAuthUser(null);
-        setOnlineUsers([]);
-        delete axios.defaults.headers.common["Authorization"];
-        //axios.defaults.headers.common["token"] = null;
+        clearAuthenticatedSession();
         toast.success("Logged out successfully");
-        socket?.disconnect();
-        setSocket(null);
     }
 
     //update profile function

@@ -5,6 +5,16 @@ import { ApiResponse } from "../utils/ApiResponse.js";
 import { uploadOnCloudinary } from "../utils/cloudinary.js";
 import bcrypt from "bcrypt"
 
+const validatePassword = (password) => {
+  if (typeof password !== "string") {
+    throw new ApiError(400, "Password must be a string //user.controller.js");
+  }
+
+  if (password.trim().length < 8) {
+    throw new ApiError(400, "Password must be at least 8 characters long //user.controller.js");
+  }
+};
+
 const generateAccessAndRefreshTokens = async (UserId) => {
   try {
       const user = await User.findById(UserId);
@@ -41,6 +51,8 @@ const signUp = asyncHandler(async (req, res) => {
 
       requiredFields[key] = trimmed; // normalize
     }
+
+    validatePassword(password);
 
     // Optional field validation
     if (bio !== undefined && typeof bio !== "string") {
@@ -88,9 +100,7 @@ const login = asyncHandler(async (req, res) => {
     if (typeof email !== "string" || normalizedEmail.length === 0) {
       throw new ApiError(400, "Email is required and must be a string //user.controller.js");
     }
-    if (typeof password !== "string" || password.trim().length < 8) {
-      throw new ApiError(400, "Password must be at least 8 characters long //user.controller.js");
-    }
+    validatePassword(password);
 
     const user = await User.findOne({ email: normalizedEmail });
     if(!user){

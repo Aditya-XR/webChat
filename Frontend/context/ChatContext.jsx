@@ -45,9 +45,28 @@ export const ChatProvider = ({ children }) => {
     };
 
     //function to send message to a selected user
-    const sendMessage = async (userId, content, image) => {
+    const sendMessage = async (userId, text = "", image = null) => {
         try {
-            const { data } = await axios.post(`/api/v1/messages/send-message/${userId}`, { content, image });
+            const formData = new FormData();
+            const normalizedText = typeof text === "string" ? text : "";
+
+            if (normalizedText) {
+                formData.append("text", normalizedText);
+            }
+
+            if (image instanceof File) {
+                formData.append("image", image);
+            }
+
+            const { data } = await axios.post(
+                `/api/v1/messages/send-message/${userId}`,
+                formData,
+                {
+                    headers: {
+                        "Content-Type": "multipart/form-data",
+                    },
+                }
+            );
             if (data.success) {
                 // Handle successful message sending
                 const newMessage = data.data;

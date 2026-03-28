@@ -6,6 +6,8 @@ import { upload } from "../middleware/multer.middleware.js";
 
 const router = Router();
 
+//todo: the APIs must flow REST design principles.
+
 router.route("/signUp").post(signUp);
 router.route("/login").post(login);
 router.route("/logout").post(verifyJWT, logout);

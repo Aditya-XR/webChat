@@ -69,7 +69,7 @@ const markMessagesAsSeen = asyncHandler(async(req, res) => {
 const sendMessage = asyncHandler(async(req, res) => {
     const {text} = req.body;
     const receiverId = req.params.id; //id of the user to whom message is to be sent
-    const senderId = req.user._id; // need to add auth middleware to get user from token
+    const senderId = req.user._id; // auth middleware will add the user to req, so we can get sender id from there
     const localFilePath = req.file?.path;
 
     //uplode image if exists and get the url

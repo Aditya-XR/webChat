@@ -43,7 +43,7 @@ connectDB()
 //routes import
 app.use("/api/v1/users", userRouter);
 app.use("/api/v1/messages", messageRouter);
-//http://localhost:5000/api/v1/users/
+//http://localhost:8000/api/v1/users/
 
 app.use((err, req, res, next) => {
     console.error(err);
