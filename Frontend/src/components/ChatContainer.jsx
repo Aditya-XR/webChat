@@ -1,5 +1,5 @@
-import React, { use, useContext, useEffect, useRef, useState } from 'react'
-import assets, { messagesDummyData } from '../assets/assets'
+import React, { useContext, useEffect, useRef, useState } from 'react'
+import assets from '../assets/assets'
 import { formatMessageTime } from '../lib/utils'
 import { ChatContext } from '../../context/ChatContext'
 import { AuthContext } from '../../context/AuthContext'
@@ -13,6 +13,8 @@ const ChatContainer = () => {
   const scrollEnd = useRef()
 
   const [input, setInput] = useState('')
+  const senderAvatar = authUser?.profilePic || assets.avatar_icon
+  const receiverAvatar = selectedUser?.profilePic || assets.avatar_icon
 
   const handleSendMessage = async (e) => {
     e.preventDefault();
@@ -73,7 +75,7 @@ const ChatContainer = () => {
                      ${msg.senderId === authUser._id ? 'rounded-br-none' : 'rounded-bl-none'}`}>{msg.text}</p>
             )}
             <div className='text-center text-xs'>
-              <img src={msg.senderId === authUser._id ? assets.avatar_icon : selectedUser.profilePic || assets.avatar_icon}
+              <img src={msg.senderId === authUser._id ? senderAvatar : receiverAvatar}
                 alt="" className='w-7 rounded-full' />
               <p className='text-gray-500'>{formatMessageTime(msg.createdAt)}</p>
             </div>

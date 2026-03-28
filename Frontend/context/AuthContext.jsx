@@ -1,6 +1,6 @@
-import { createContext, useEffect, useState } from "react";
+import { createContext, useEffect, useRef, useState } from "react";
 import axios from "axios";
-import {toast} from 'react-hot-toast';
+import { toast } from "react-hot-toast";
 import { io } from "socket.io-client";
 
 const backendUrl = import.meta.env.VITE_BACKEND_URL;
@@ -9,11 +9,13 @@ export const AuthContext = createContext();
 axios.defaults.baseURL = backendUrl;
 
 export const AuthProvider = ({ children }) => {
-
     const [token, setToken] = useState(localStorage.getItem("token"));
     const [authUser, setAuthUser] = useState(null);
     const [onlineUsers, setOnlineUsers] = useState([]);
     const [socket, setSocket] = useState(null);
+    const [loading, setLoading] = useState(false);
+    const activeRequestsCountRef = useRef(0);
+    const loaderTimeoutRef = useRef(null);
 
     const clearAuthenticatedSession = () => {
         localStorage.removeItem("token");
@@ -34,13 +36,13 @@ export const AuthProvider = ({ children }) => {
     };
 
     const checkAuth = async () => {
-        try{
+        try {
             const { data } = await axios.get("/api/v1/users/me");
-            if(data.success){
+            if (data.success) {
                 setAuthUser(data.data);
                 connectSocket(data.data);
             }
-        }catch(err){
+        } catch (err) {
             const statusCode = err.response?.status;
 
             if (statusCode === 401) {
@@ -53,17 +55,19 @@ export const AuthProvider = ({ children }) => {
                 toast.error(err.response?.data?.message || err.message || "Authentication check failed");
             }
         }
-    }
+    };
 
     //login function
     const login = async (state, credentials) => {
+        if (loading || activeRequestsCountRef.current > 0) return false;
+
         const normalizedCredentials = {
             ...credentials,
             email: typeof credentials?.email === "string" ? credentials.email.trim() : credentials?.email,
             fullName: typeof credentials?.fullName === "string" ? credentials.fullName.trim() : credentials?.fullName,
         };
 
-        try{
+        try {
             if (state === "Sign up") {
                 const signUpResponse = await axios.post("/api/v1/users/signUp", normalizedCredentials);
                 if (!signUpResponse.data.success) {
@@ -90,7 +94,7 @@ export const AuthProvider = ({ children }) => {
             }
 
             const { data } = await axios.post("/api/v1/users/login", normalizedCredentials);
-            if(data.success){
+            if (data.success) {
                 const accessToken = data.data?.accessToken;
                 const user = data.data?.user;
                 setAuthenticatedSession(user, accessToken);
@@ -100,22 +104,23 @@ export const AuthProvider = ({ children }) => {
 
             toast.error(data.message || "Login failed");
             return false;
-        } catch(err){
+        } catch (err) {
             toast.error(err.response?.data?.message || err.message || "Login failed");
             return false;
         }
-    }
-    
+    };
 
     //logout function
     const logout = () => {
         clearAuthenticatedSession();
         toast.success("Logged out successfully");
-    }
+    };
 
     //update profile function
     const updateProfile = async (body) => {
-        try{
+        if (loading || activeRequestsCountRef.current > 0) return false;
+
+        try {
             const hasProfilePic = body?.profilePic instanceof File;
             let payload = body;
             let config = {};
@@ -131,61 +136,151 @@ export const AuthProvider = ({ children }) => {
             }
 
             const { data } = await axios.put("/api/v1/users/update-profile", payload, config);
-            if(data.success){
+            if (data.success) {
                 setAuthUser(data.data);
                 toast.success("Profile updated successfully");
                 return true;
             }
             return false;
-        }catch(err){
+        } catch (err) {
             toast.error(err.response?.data?.message || "Failed to update profile");
             return false;
         }
-    }
+    };
 
     // Function to connect to Socket.IO server
     const connectSocket = (userData) => {
-        if(!userData || socket?.connected) return;
+        if (!userData || socket?.connected) return;
         const newSocket = io(backendUrl, {
             query: {
                 userId: userData._id,
-            }
-        })
-         newSocket.connect();
-         setSocket(newSocket);
+            },
+        });
+        newSocket.connect();
+        setSocket(newSocket);
 
-         newSocket.on("online-users", (users) => {
-             setOnlineUsers(users);
-         });
-    }
+        newSocket.on("online-users", (users) => {
+            setOnlineUsers(users);
+        });
+    };
 
-// Set the token in axios headers on initial load
     useEffect(() => {
-        if(token){
+        const clearLoaderTimeout = () => {
+            if (loaderTimeoutRef.current) {
+                clearTimeout(loaderTimeoutRef.current);
+                loaderTimeoutRef.current = null;
+            }
+        };
+
+        const shouldSkipLoader = (headers) => {
+            if (!headers) return false;
+
+            const headerValue =
+                typeof headers.get === "function"
+                    ? headers.get("x-no-loader")
+                    : headers["x-no-loader"] ?? headers["X-No-Loader"];
+
+            return headerValue === true || headerValue === "true";
+        };
+
+        const removeSkipLoaderHeader = (headers) => {
+            if (!headers) return;
+
+            if (typeof headers.delete === "function") {
+                headers.delete("x-no-loader");
+                return;
+            }
+
+            delete headers["x-no-loader"];
+            delete headers["X-No-Loader"];
+        };
+
+        const finishTrackedRequest = (config) => {
+            if (!config?._shouldTrackLoader) return;
+
+            activeRequestsCountRef.current = Math.max(0, activeRequestsCountRef.current - 1);
+
+            if (activeRequestsCountRef.current === 0) {
+                clearLoaderTimeout();
+                setLoading(false);
+            }
+        };
+
+        const requestInterceptor = axios.interceptors.request.use(
+            (config) => {
+                const skipLoader = shouldSkipLoader(config.headers);
+                config._shouldTrackLoader = !skipLoader;
+                removeSkipLoaderHeader(config.headers);
+
+                if (!skipLoader) {
+                    activeRequestsCountRef.current += 1;
+
+                    if (activeRequestsCountRef.current === 1) {
+                        clearLoaderTimeout();
+                        loaderTimeoutRef.current = setTimeout(() => {
+                            setLoading(true);
+                            loaderTimeoutRef.current = null;
+                        }, 200);
+                    }
+                }
+
+                return config;
+            },
+            (error) => {
+                finishTrackedRequest(error.config);
+                return Promise.reject(error);
+            },
+        );
+
+        const responseInterceptor = axios.interceptors.response.use(
+            (response) => {
+                finishTrackedRequest(response.config);
+                return response;
+            },
+            (error) => {
+                finishTrackedRequest(error.config);
+                return Promise.reject(error);
+            },
+        );
+
+        return () => {
+            clearLoaderTimeout();
+            activeRequestsCountRef.current = 0;
+            setLoading(false);
+            axios.interceptors.request.eject(requestInterceptor);
+            axios.interceptors.response.eject(responseInterceptor);
+        };
+    }, []);
+
+    // Set the token in axios headers on initial load
+    useEffect(() => {
+        if (token) {
             axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
             //axios.defaults.headers.common["token"] = token;
         }
         checkAuth();
-    },[])
+    }, []);
 
     const value = {
-         axios,
-         token,
-         setToken,
-         authUser,
-         setAuthUser,
-         onlineUsers,
-         setOnlineUsers,
-         socket,
-         setSocket,
-            login,
-            logout,
-            updateProfile,
-    }
-    
+        axios,
+        token,
+        setToken,
+        authUser,
+        setAuthUser,
+        onlineUsers,
+        setOnlineUsers,
+        socket,
+        setSocket,
+        loading,
+        setLoading,
+        login,
+        logout,
+        updateProfile,
+    };
+
     return (
         <AuthContext.Provider value={value}>
             {children}
         </AuthContext.Provider>
-    )
-}
+    );
+};
