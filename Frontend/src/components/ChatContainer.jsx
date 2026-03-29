@@ -19,7 +19,8 @@ const ChatContainer = () => {
   const handleSendMessage = async (e) => {
     e.preventDefault();
     if (!input.trim()) return;
-    await sendMessage(selectedUser._id, input, null);
+    const didSend = await sendMessage(selectedUser._id, input, null);
+    if (!didSend) return;
     setInput('');
     getMessages(selectedUser._id);
   }
@@ -33,7 +34,11 @@ const ChatContainer = () => {
       return;
     }
 
-    await sendMessage(selectedUser._id, '', file);
+    const didSend = await sendMessage(selectedUser._id, '', file);
+    if (!didSend) {
+      e.target.value = '';
+      return;
+    }
     e.target.value = '';
     getMessages(selectedUser._id);
   }

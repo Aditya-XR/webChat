@@ -82,12 +82,20 @@ const sendMessage = asyncHandler(async(req, res) => {
         imageUrl = uploadedImageUrl;
     }
 
+    if (req.isTimedOut?.()) {
+        return;
+    }
+
     const newMessage = await Message.create({
         senderId,
         receiverId,
         text,
         image: imageUrl
-    })
+    });
+
+    if (req.isTimedOut?.()) {
+        return;
+    }
 
     //emit the new message to the receiver if they are online
     const receiverSocketId = userSocketMap[receiverId];

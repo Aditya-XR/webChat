@@ -7,11 +7,11 @@ import bcrypt from "bcrypt"
 
 const validatePassword = (password) => {
   if (typeof password !== "string") {
-    throw new ApiError(400, "Password must be a string //user.controller.js");
+    throw new ApiError(400, "Password must be a string ");
   }
 
   if (password.trim().length < 8) {
-    throw new ApiError(400, "Password must be at least 8 characters long //user.controller.js");
+    throw new ApiError(400, "Password must be at least 8 characters long ");
   }
 };
 
@@ -27,7 +27,7 @@ const generateAccessAndRefreshTokens = async (UserId) => {
 
       return { accessToken, refreshToken };
   } catch (error) {
-      throw new ApiError(500, "Error generating access and refresh tokens //user.controller.js");
+      throw new ApiError(500, "Error generating access and refresh tokens ");
   }
 }
 
@@ -41,12 +41,12 @@ const signUp = asyncHandler(async (req, res) => {
 
     for (const [key, value] of Object.entries(requiredFields)) {
       if (typeof value !== "string") {
-        throw new ApiError(400, `${key} must be a string //user.controller.js`);
+        throw new ApiError(400, `${key} must be a string `);
       }
 
       const trimmed = value.trim();
       if (trimmed.length === 0) {
-        throw new ApiError(400, `${key} is required //user.controller.js`);
+        throw new ApiError(400, `${key} is required `);
       }
 
       requiredFields[key] = trimmed; // normalize
@@ -56,14 +56,14 @@ const signUp = asyncHandler(async (req, res) => {
 
     // Optional field validation
     if (bio !== undefined && typeof bio !== "string") {
-      throw new ApiError(400, "bio must be a string //user.controller.js");
+      throw new ApiError(400, "bio must be a string ");
     }
 
     const ExistingUser = await User.findOne({ email: normalizedEmail });
     if (ExistingUser) {
       throw new ApiError(
         409,
-        "User with this email already exists //user.controller.js",
+        "User with this email already exists "
       );
     }
 
@@ -98,25 +98,25 @@ const login = asyncHandler(async (req, res) => {
     //console.log(req.body)
     // Validate input
     if (typeof email !== "string" || normalizedEmail.length === 0) {
-      throw new ApiError(400, "Email is required and must be a string //user.controller.js");
+      throw new ApiError(400, "Email is required and must be a string ");
     }
     validatePassword(password);
 
     const user = await User.findOne({ email: normalizedEmail });
     if(!user){
-      throw new ApiError(401, "Invalid email or password //user.controller.js");
+      throw new ApiError(401, "Invalid email or password ");
     }
 
     //password validation
     const isPasswordCorrect = await user.isPasswordCorrect(password);
     if(!isPasswordCorrect){
-      throw new ApiError(401, "Invalid email or password //user.controller.js");
+      throw new ApiError(401, "Invalid email or password ");
     }
 
 
     const {accessToken, refreshToken} = await generateAccessAndRefreshTokens(user._id);
     if(!accessToken || !refreshToken){
-      throw new ApiError(500, "Error generating access and refresh tokens //user.controller.js");
+      throw new ApiError(500, "Error generating access and refresh tokens ");
     }
     const loggedInUser = await User.findById(user._id).select(
         "-password -refreshToken"

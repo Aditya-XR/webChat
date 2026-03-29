@@ -72,9 +72,13 @@ export const ChatProvider = ({ children }) => {
                 const newMessage = data.data;
                 setMessages(prevMessages => [...prevMessages, newMessage]);
                 socket.emit("new-message", { to: userId, message: newMessage });
+                return true;
             }
+
+            return false;
         } catch (error) {
             toast.error(error.response?.data?.message || error.message || "Failed to send message");
+            return false;
         }
     };
 
