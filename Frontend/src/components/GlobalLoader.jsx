@@ -4,7 +4,7 @@ import loadingAnimation from "../assets/loading.json";
 const GlobalLoader = () => {
     return (
         <div
-            className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-950/35 backdrop-blur-sm"
+            className="fixed inset-0 z-9999 flex items-center justify-center bg-slate-950/35 backdrop-blur-sm"
             role="status"
             aria-live="polite"
             aria-label="Loading"
