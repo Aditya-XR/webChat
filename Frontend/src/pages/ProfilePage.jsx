@@ -1,18 +1,33 @@
-import React, { useState } from 'react'
+import React, { useContext, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom';
 import assets from '../assets/assets';
+import { AuthContext } from '../../context/AuthContext';
 
 const ProfilePage = () => {
 
+  const {authUser, updateProfile} = useContext(AuthContext);
+
   const [selectedImage, setSelectedImage] = useState(null);
   const navigate = useNavigate();
-  const [name, setName] = useState("Martin Johnson");
-  const [bio, setBio] = useState("Hi there! I'm using WebChat.");
+  const [name, setName] = useState(authUser?.fullName || "");
+  const [bio, setBio] = useState(authUser?.bio || "Hi there! I'm using WebChat.");
+
+  useEffect(() => {
+    setName(authUser?.fullName || "");
+    setBio(authUser?.bio || "Hi there! I'm using WebChat.");
+  }, [authUser]);
 
   const onSubmitHandler = async (e) => {
     e.preventDefault();
-    console.log("Profile updated:", { name, bio, image: selectedImage });
-    // Add your profile update logic here
+    const didUpdateProfile = await updateProfile({
+      fullName: name,
+      bio,
+      ...(selectedImage ? { profilePic: selectedImage } : {}),
+    });
+
+    if (didUpdateProfile) {
+      navigate('/');
+    }
   }
 
   return (
@@ -25,7 +40,7 @@ const ProfilePage = () => {
             <label htmlFor="avatar" className='flex items-center gap-3 cursor-pointer'>
               <input onChange={(e)=>setSelectedImage(e.target.files[0])} type="file" id="avatar" accept='.png, .jpg, .jpeg' hidden/>
               <img src={selectedImage ? URL.createObjectURL(selectedImage) : 
-                assets.avatar_icon} alt="" className={`w-12 h-12 ${selectedImage && 'rounded-full'}`} />
+                authUser?.profilePic || assets.avatar_icon} alt="" className={`w-12 h-12 ${selectedImage ? 'rounded-full' : ''}`} />
               upload profile picture
             </label>
             <input onChange={(e)=>setName(e.target.value)} value={name} 
@@ -39,7 +54,7 @@ const ProfilePage = () => {
             <button onClick={()=>navigate(-1)} type='button' className='text-gray-400
             hover:text-white transition-colors py-2 rounded-md mt-2'>Go Back</button>
           </form>
-          <img src={selectedImage ? URL.createObjectURL(selectedImage) : assets.logo_icon} alt="" className='max-w-[160px] my-5 rounded-full mx-auto' />
+          <img src={selectedImage ? URL.createObjectURL(selectedImage) : authUser?.profilePic || assets.logo_icon} alt="" className='max-w-[160px] my-5 rounded-full mx-auto' />
         </div>
     </div>
   )
