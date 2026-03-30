@@ -3,10 +3,16 @@ import axios from "axios";
 import { toast } from "react-hot-toast";
 import { io } from "socket.io-client";
 
-const backendUrl = import.meta.env.VITE_BACKEND_URL;
+const rawBackendUrl = import.meta.env.VITE_BACKEND_URL;
+const backendUrl = typeof rawBackendUrl === "string"
+    ? rawBackendUrl.replace(/\/+$/, "")
+    : "";
 
 export const AuthContext = createContext();
-axios.defaults.baseURL = backendUrl;
+
+if (backendUrl) {
+    axios.defaults.baseURL = backendUrl;
+}
 
 export const AuthProvider = ({ children }) => {
     const [token, setToken] = useState(localStorage.getItem("token"));
@@ -150,7 +156,7 @@ export const AuthProvider = ({ children }) => {
 
     // Function to connect to Socket.IO server
     const connectSocket = (userData) => {
-        if (!userData || socket?.connected) return;
+        if (!backendUrl || !userData || socket?.connected) return;
         const newSocket = io(backendUrl, {
             query: {
                 userId: userData._id,

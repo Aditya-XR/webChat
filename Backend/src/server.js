@@ -11,11 +11,28 @@ import { initSocket } from "./socket.js";
 //creating Express app and HTTP server
 const app = express();
 const server = http.createServer(app);
+const isVercelDeployment = Boolean(process.env.VERCEL);
+const PORT = process.env.PORT || 5000;
+
+const dbConnectionPromise = connectDB().catch((err) => {
+    console.log(" //server.js// MONGO DB connection failed !!!!", err);
+    throw err;
+});
 
 // Initilizing socket.io server
-initSocket(server, process.env.CORS_ORIGIN);
+if (!isVercelDeployment) {
+    initSocket(server, process.env.CORS_ORIGIN);
+}
 
 //middleware setup
+app.use(async (req, res, next) => {
+    try {
+        await dbConnectionPromise;
+        next();
+    } catch (error) {
+        next(error);
+    }
+});
 app.use(express.json({limit: "5mb"}));
 app.use(cors({
     origin: process.env.CORS_ORIGIN,
@@ -24,21 +41,6 @@ app.use(cors({
 app.use(cookieParser());
 
 app.use("/api/status", (req, res) => res.send("Server is running"));
-
-const PORT = process.env.PORT || 5000;
-
-//Connecting to DB
-
-connectDB()
-.then(() => {
-    server.listen(process.env.PORT || 5000, () => {
-        console.log(`Server is running on port: ${process.env.PORT || 5000} //server.js`);
-    })
-})
-.catch((err) => {
-    console.log(" //server.js// MONGO DB connection failed !!!!", err);
-})
-
 
 //routes import
 app.use("/api/v1/users", userRouter);
@@ -60,6 +62,18 @@ app.use((err, req, res, next) => {
         errors: err.errors || [],
     });
 });
+
+if (!isVercelDeployment) {
+    dbConnectionPromise
+        .then(() => {
+            server.listen(PORT, () => {
+                console.log(`Server is running on port: ${PORT} //server.js`);
+            });
+        })
+        .catch(() => {
+            process.exitCode = 1;
+        });
+}
 
 
 export default app;
