@@ -18,6 +18,12 @@ const userSchema = new Schema(
             required: true,
             trim: true,
         },
+        googleId:
+        {
+            type: String,
+            unique: true,
+            sparse: true,
+        },
         bio:
         {
             type: String,
@@ -33,7 +39,7 @@ const userSchema = new Schema(
         {
             type: String,
             minlength: 8,
-            required: [true, "Password is required"],
+            default: null,
         },
         refreshToken:
         {
@@ -46,6 +52,10 @@ const userSchema = new Schema(
 );
 
 userSchema.methods.isPasswordCorrect = async function(password){
+    if (!this.password) {
+        return false;
+    }
+
     return await bcrypt.compare(password, this.password);
 }
 

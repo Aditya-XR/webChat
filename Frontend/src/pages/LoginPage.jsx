@@ -2,6 +2,7 @@ import React, { useContext, useEffect, useState } from 'react'
 import assets from '../assets/assets'
 import { AuthContext } from '../../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import GoogleSignInButton from '../components/GoogleSignInButton';
 
 const LoginPage = () => {
   const navigate = useNavigate();
@@ -13,7 +14,7 @@ const LoginPage = () => {
   const [isDataSubmitted, setIsDataSubmitted] = useState(false);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
 
-  const { authUser, login, updateProfile } = useContext(AuthContext);
+  const { authUser, login, loginWithGoogle, updateProfile } = useContext(AuthContext);
   const isBioStep = currState === "Sign up" && isDataSubmitted;
 
   useEffect(() => {
@@ -50,6 +51,14 @@ const LoginPage = () => {
 
     await login("Login", { email, password });
 }
+
+  const handleGoogleSignIn = async (credential) => {
+    const didLogin = await loginWithGoogle(credential);
+
+    if (didLogin && localStorage.getItem("needsBioSetup") !== "true") {
+      navigate("/");
+    }
+  };
 
   return (
     <div className='min-h-screen bg-cover bg-center flex items-center
@@ -100,6 +109,10 @@ const LoginPage = () => {
           transition-all duration-300'>
             {isBioStep ? "Update Bio" : currState === "Sign up" ? "Create Account" : "Login Now"}
           </button>
+
+          {!isBioStep && (
+            <GoogleSignInButton onCredentialResponse={handleGoogleSignIn} />
+          )}
           
           {currState === "Sign up" && !isBioStep && (
             <div className='text-xs text-gray-300 flex gap-2 items-center

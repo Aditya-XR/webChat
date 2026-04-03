@@ -41,6 +41,31 @@ export const AuthProvider = ({ children }) => {
         axios.defaults.headers.common["Authorization"] = `Bearer ${accessToken}`;
     };
 
+    const handleAuthSuccess = (data, successMessage) => {
+        const accessToken = data?.accessToken;
+        const user = data?.user;
+        const hasProfileCompletionFlag = typeof data?.requiresProfileCompletion === "boolean";
+        const requiresProfileCompletion = data?.requiresProfileCompletion === true;
+
+        if (!accessToken || !user) {
+            toast.error("Authentication response is incomplete");
+            return false;
+        }
+
+        if (hasProfileCompletionFlag) {
+            if (requiresProfileCompletion) {
+                localStorage.setItem("needsBioSetup", "true");
+            } else {
+                localStorage.removeItem("needsBioSetup");
+            }
+        }
+
+        setAuthenticatedSession(user, accessToken);
+        toast.success(successMessage);
+
+        return true;
+    };
+
     const checkAuth = async () => {
         try {
             const { data } = await axios.get("/api/v1/users/me");
@@ -101,11 +126,7 @@ export const AuthProvider = ({ children }) => {
 
             const { data } = await axios.post("/api/v1/users/login", normalizedCredentials);
             if (data.success) {
-                const accessToken = data.data?.accessToken;
-                const user = data.data?.user;
-                setAuthenticatedSession(user, accessToken);
-                toast.success("Login successful");
-                return true;
+                return handleAuthSuccess(data.data, "Login successful");
             }
 
             toast.error(data.message || "Login failed");
@@ -116,10 +137,38 @@ export const AuthProvider = ({ children }) => {
         }
     };
 
+    const loginWithGoogle = async (credential) => {
+        if (loading || activeRequestsCountRef.current > 0) return false;
+
+        try {
+            const { data } = await axios.post("/api/v1/users/google", { credential });
+
+            if (data.success) {
+                return handleAuthSuccess(data.data, "Google sign-in successful");
+            }
+
+            toast.error(data.message || "Google sign-in failed");
+            return false;
+        } catch (err) {
+            toast.error(err.response?.data?.message || err.message || "Google sign-in failed");
+            return false;
+        }
+    };
+
     //logout function
-    const logout = () => {
-        clearAuthenticatedSession();
-        toast.success("Logged out successfully");
+    const logout = async () => {
+        try {
+            await axios.post("/api/v1/users/logout");
+        } catch (err) {
+            const statusCode = err.response?.status;
+
+            if (statusCode && statusCode !== 401) {
+                toast.error(err.response?.data?.message || "Failed to logout cleanly");
+            }
+        } finally {
+            clearAuthenticatedSession();
+            toast.success("Logged out successfully");
+        }
     };
 
     //update profile function
@@ -280,6 +329,7 @@ export const AuthProvider = ({ children }) => {
         loading,
         setLoading,
         login,
+        loginWithGoogle,
         logout,
         updateProfile,
     };

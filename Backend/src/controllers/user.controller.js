@@ -4,6 +4,17 @@ import User from "../models/user.model.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { uploadOnCloudinary } from "../utils/cloudinary.js";
 import bcrypt from "bcrypt"
+import { OAuth2Client } from "google-auth-library";
+
+const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+
+const getCookieOptions = () => ({
+  httpOnly: true,
+  secure: true,
+});
+
+const normalizeEmail = (email) =>
+  typeof email === "string" ? email.trim().toLowerCase() : "";
 
 const validatePassword = (password) => {
   if (typeof password !== "string") {
@@ -13,6 +24,37 @@ const validatePassword = (password) => {
   if (password.trim().length < 8) {
     throw new ApiError(400, "Password must be at least 8 characters long ");
   }
+};
+
+const sendAuthResponse = async (res, userId, message, requiresProfileCompletion = false) => {
+  const { accessToken, refreshToken } = await generateAccessAndRefreshTokens(userId);
+
+  if (!accessToken || !refreshToken) {
+    throw new ApiError(500, "Error generating access and refresh tokens ");
+  }
+
+  const loggedInUser = await User.findById(userId).select("-password -refreshToken");
+
+  if (!loggedInUser) {
+    throw new ApiError(500, "Authenticated user could not be loaded ");
+  }
+
+  return res
+    .status(200)
+    .cookie("accessToken", accessToken, getCookieOptions())
+    .cookie("refreshToken", refreshToken, getCookieOptions())
+    .json(
+      new ApiResponse(
+        200,
+        {
+          user: loggedInUser,
+          accessToken,
+          refreshToken,
+          requiresProfileCompletion,
+        },
+        message
+      )
+    );
 };
 
 const generateAccessAndRefreshTokens = async (UserId) => {
@@ -33,7 +75,7 @@ const generateAccessAndRefreshTokens = async (UserId) => {
 
 const signUp = asyncHandler(async (req, res) => {
   const { email, fullName, bio, password } = req.body;
-    const normalizedEmail = typeof email === "string" ? email.trim().toLowerCase() : "";
+    const normalizedEmail = normalizeEmail(email);
     const normalizedFullName = typeof fullName === "string" ? fullName.trim() : "";
 
     // Required field validation
@@ -94,18 +136,23 @@ const signUp = asyncHandler(async (req, res) => {
 
 const login = asyncHandler(async (req, res) => {
     const {email, password} = req.body;
-    const normalizedEmail = typeof email === "string" ? email.trim().toLowerCase() : "";
+    const normalizedEmail = normalizeEmail(email);
     //console.log(req.body)
     // Validate input
     if (typeof email !== "string" || normalizedEmail.length === 0) {
       throw new ApiError(400, "Email is required and must be a string ");
     }
-    validatePassword(password);
 
     const user = await User.findOne({ email: normalizedEmail });
     if(!user){
       throw new ApiError(401, "Invalid email or password ");
     }
+
+    if (!user.password) {
+      throw new ApiError(401, "This account uses Google sign-in. Continue with Google.");
+    }
+
+    validatePassword(password);
 
     //password validation
     const isPasswordCorrect = await user.isPasswordCorrect(password);
@@ -113,35 +160,85 @@ const login = asyncHandler(async (req, res) => {
       throw new ApiError(401, "Invalid email or password ");
     }
 
+    return sendAuthResponse(res, user._id, "User logged in successfully");
+});
 
-    const {accessToken, refreshToken} = await generateAccessAndRefreshTokens(user._id);
-    if(!accessToken || !refreshToken){
-      throw new ApiError(500, "Error generating access and refresh tokens ");
+const googleLogin = asyncHandler(async (req, res) => {
+  const { credential } = req.body;
+
+  if (typeof credential !== "string" || credential.trim().length === 0) {
+    throw new ApiError(400, "Google credential is required ");
+  }
+
+  if (!process.env.GOOGLE_CLIENT_ID) {
+    throw new ApiError(500, "Google sign-in is not configured ");
+  }
+
+  let ticket;
+
+  try {
+    ticket = await googleClient.verifyIdToken({
+      idToken: credential,
+      audience: process.env.GOOGLE_CLIENT_ID,
+    });
+  } catch (error) {
+    throw new ApiError(401, "Invalid or expired Google credential ");
+  }
+
+  const payload = ticket.getPayload();
+  const googleId = payload?.sub;
+  const normalizedEmail = normalizeEmail(payload?.email);
+  const isEmailVerified = payload?.email_verified === true;
+  const googleName = typeof payload?.name === "string" ? payload.name.trim() : "";
+  const googlePicture = typeof payload?.picture === "string" ? payload.picture.trim() : "";
+
+  if (!googleId || !normalizedEmail || !isEmailVerified) {
+    throw new ApiError(401, "Google account verification failed ");
+  }
+
+  let user = await User.findOne({ googleId });
+  let requiresProfileCompletion = false;
+
+  if (!user) {
+    user = await User.findOne({ email: normalizedEmail });
+
+    if (user?.googleId && user.googleId !== googleId) {
+      throw new ApiError(409, "This email is already linked to another Google account.");
     }
-    const loggedInUser = await User.findById(user._id).select(
-        "-password -refreshToken"
-    );
-    //console.log("Logged in user data prepared: ", loggedInUser);
 
-    const options = {//cookie options -> only server can modify httpOnly
-        httpOnly: true,
-        secure: true
+    if (user) {
+      user.googleId = googleId;
+
+      if (!user.fullName && googleName) {
+        user.fullName = googleName;
+      }
+
+      if (!user.profilePic && googlePicture) {
+        user.profilePic = googlePicture;
+      }
+
+      await user.save({ validateBeforeSave: false });
+    } else {
+      user = await User.create({
+        email: normalizedEmail,
+        fullName: googleName || normalizedEmail.split("@")[0],
+        profilePic: googlePicture,
+        bio: "",
+        googleId,
+        password: null,
+      });
+
+      requiresProfileCompletion = true;
     }
+  }
 
-   return res
-        .status(200)
-        .cookie("accessToken", accessToken, options)
-        .cookie("refreshToken", refreshToken, options)
-        .json(
-            new ApiResponse(200,
-              {
-                user: loggedInUser,accessToken, refreshToken
-              },
-                "User logged in successfully"
-            )
-        );  
-  
-})
+  return sendAuthResponse(
+    res,
+    user._id,
+    "Google sign-in successful",
+    requiresProfileCompletion
+  );
+});
 
 const logout = asyncHandler(async (req, res) => {
   await User.findByIdAndUpdate(
@@ -158,8 +255,7 @@ const logout = asyncHandler(async (req, res) => {
     )
 
     const options = {
-        httpOnly: true,
-        secure: true,
+        ...getCookieOptions(),
         expires: new Date(0) // Expire the cookie immediately
     }
     return res
@@ -223,6 +319,7 @@ const getCurrentUser = asyncHandler(async (req, res) => {
 export { 
   signUp,
   login,
+  googleLogin,
   logout,
   updateProfile,
   getCurrentUser
