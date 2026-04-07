@@ -16,6 +16,19 @@ const getCookieOptions = () => ({
 const normalizeEmail = (email) =>
   typeof email === "string" ? email.trim().toLowerCase() : "";
 
+const isGoogleHostedProfilePic = (profilePic = "") => {
+  if (typeof profilePic !== "string" || profilePic.trim().length === 0) {
+    return false;
+  }
+
+  try {
+    const parsedUrl = new URL(profilePic);
+    return parsedUrl.hostname.endsWith("googleusercontent.com");
+  } catch (error) {
+    return false;
+  }
+};
+
 const validatePassword = (password) => {
   if (typeof password !== "string") {
     throw new ApiError(400, "Password must be a string ");
@@ -199,7 +212,24 @@ const googleLogin = asyncHandler(async (req, res) => {
   let user = await User.findOne({ googleId });
   let requiresProfileCompletion = false;
 
-  if (!user) {
+  if (user) {
+    let shouldSave = false;
+
+    if (googleName && !user.fullName) {
+      user.fullName = googleName;
+      shouldSave = true;
+    }
+
+    // Refresh Google-hosted avatar URLs, but keep custom uploaded avatars intact.
+    if (googlePicture && (!user.profilePic || isGoogleHostedProfilePic(user.profilePic))) {
+      user.profilePic = googlePicture;
+      shouldSave = true;
+    }
+
+    if (shouldSave) {
+      await user.save({ validateBeforeSave: false });
+    }
+  } else {
     user = await User.findOne({ email: normalizedEmail });
 
     if (user?.googleId && user.googleId !== googleId) {
@@ -207,17 +237,24 @@ const googleLogin = asyncHandler(async (req, res) => {
     }
 
     if (user) {
+      let shouldSave = false;
+
       user.googleId = googleId;
+      shouldSave = true;
 
       if (!user.fullName && googleName) {
         user.fullName = googleName;
+        shouldSave = true;
       }
 
-      if (!user.profilePic && googlePicture) {
+      if (googlePicture && (!user.profilePic || isGoogleHostedProfilePic(user.profilePic))) {
         user.profilePic = googlePicture;
+        shouldSave = true;
       }
 
-      await user.save({ validateBeforeSave: false });
+      if (shouldSave) {
+        await user.save({ validateBeforeSave: false });
+      }
     } else {
       user = await User.create({
         email: normalizedEmail,
