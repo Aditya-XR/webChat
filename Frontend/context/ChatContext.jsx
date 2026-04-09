@@ -13,7 +13,38 @@ export const ChatProvider = ({ children }) => {
     const [selectedUser, setSelectedUser] = useState(null);
     const [unseenMessages, setUnseenMessages] = useState({});
 
-    const {socket, axios} = useContext(AuthContext);
+    const {socket, axios, authUser} = useContext(AuthContext);
+
+    const applyMessageUpdate = (updatedMessage) => {
+        if (!updatedMessage?._id) return;
+
+        setMessages((prevMessages) => {
+            let didUpdate = false;
+
+            const nextMessages = prevMessages.map((message) => {
+                if (message._id !== updatedMessage._id) {
+                    return message;
+                }
+
+                didUpdate = true;
+                return {
+                    ...message,
+                    ...updatedMessage,
+                };
+            });
+
+            return didUpdate ? nextMessages : prevMessages;
+        });
+    };
+
+    const buildOptimisticDeletedMessage = (message) => ({
+        ...message,
+        text: "",
+        image: "",
+        isDeleted: true,
+        deletedAt: message?.deletedAt || new Date().toISOString(),
+        deletedBy: authUser?._id || message?.deletedBy || null,
+    });
 
     //function to get all users from backend
     const getUsers = async () => {
@@ -82,6 +113,33 @@ export const ChatProvider = ({ children }) => {
         }
     };
 
+    const deleteMessage = async (messageId) => {
+        const existingMessage = messages.find((message) => message._id === messageId);
+
+        if (!existingMessage) {
+            return false;
+        }
+
+        const optimisticMessage = buildOptimisticDeletedMessage(existingMessage);
+        applyMessageUpdate(optimisticMessage);
+
+        try {
+            const { data } = await axios.put(`/api/v1/messages/delete-message/${messageId}`);
+
+            if (data.success) {
+                applyMessageUpdate(data.data);
+                return true;
+            }
+
+            applyMessageUpdate(existingMessage);
+            return false;
+        } catch (error) {
+            applyMessageUpdate(existingMessage);
+            toast.error(error.response?.data?.message || error.message || "Failed to delete message");
+            return false;
+        }
+    };
+
     //function to subscribe to socket events for real-time updates
     const subscribeToMessage = async () => {
         if(!socket) return;
@@ -97,13 +155,18 @@ export const ChatProvider = ({ children }) => {
                     [newMessage.senderId]: (prevUnseenMessages[newMessage.senderId] || 0) + 1
                 }))
             }
-        })
+        });
+
+        socket.on("messageDeleted", (deletedMessage) => {
+            applyMessageUpdate(deletedMessage);
+        });
     }
 
     //function to unsubscribe from socket events to prevent memory leaks
     const unsubscribeFromMessage = () => {
         if(socket){
             socket.off("newMessage");
+            socket.off("messageDeleted");
         }
     }
 
@@ -127,6 +190,7 @@ export const ChatProvider = ({ children }) => {
         getUsers,
         getMessages,
         sendMessage,
+        deleteMessage,
         subscribeToMessage,
         unsubscribeFromMessage
     }

@@ -1,7 +1,7 @@
 import {Router} from "express";
 import { verifyJWT } from "../middleware/auth.middleware.js";
 import { upload } from "../middleware/multer.middleware.js";
-import { getUsersForSidebar, getMessages, markMessagesAsSeen, sendMessage } from "../controllers/message.controller.js";
+import { deleteMessage, getUsersForSidebar, getMessages, markMessagesAsSeen, sendMessage } from "../controllers/message.controller.js";
 import { createRequestTimeoutMiddleware } from "../middleware/requestTimeout.middleware.js";
 
 const messageRouter = Router();
@@ -9,6 +9,7 @@ const messageRouter = Router();
 messageRouter.route("/getUsers").get(verifyJWT, getUsersForSidebar);
 messageRouter.route("/messages/:id").get(verifyJWT, getMessages);
 messageRouter.route("/mark-as-seen/:id").put(verifyJWT, markMessagesAsSeen);
+messageRouter.route("/delete-message/:id").put(verifyJWT, deleteMessage);
 messageRouter.route("/send-message/:id").post(
     verifyJWT,
     createRequestTimeoutMiddleware(),
