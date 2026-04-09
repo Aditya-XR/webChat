@@ -15,6 +15,7 @@ const ChatContainer = () => {
   const [input, setInput] = useState('')
   const senderAvatar = authUser?.profilePic || assets.avatar_icon
   const receiverAvatar = selectedUser?.profilePic || assets.avatar_icon
+  const selectedUserName = selectedUser?.fullName || selectedUser?.name || 'Unknown User'
 
   const handleSendMessage = async (e) => {
     e.preventDefault();
@@ -60,11 +61,19 @@ const ChatContainer = () => {
 
       {/*----- Chat header-----*/}
       <div className='flex items-center gap-3 py-3 mx-4 border-b border-stone-500'>
-        <img src={selectedUser.profilePic || assets.avatar_icon} alt="" className='w-8 rounded-full' />
-        <p className='flex-1 text-lg text-white flex items-center gap-2'>
-          {selectedUser.name}
-          {onlineUsers.includes(selectedUser._id) && <span className="w-2 h-2 rounded-full bg-green-500"></span>}
-        </p>
+        <img
+          src={selectedUser.profilePic || assets.avatar_icon}
+          alt={selectedUserName}
+          className='h-10 w-10 rounded-full object-cover'
+        />
+        <div className='flex-1 min-w-0'>
+          <p className='truncate text-base font-medium text-white md:text-lg'>
+            {selectedUserName}
+          </p>
+          <p className='text-xs text-stone-300 md:text-sm'>
+            {onlineUsers.includes(selectedUser._id) ? 'online' : 'offline'}
+          </p>
+        </div>
         <img onClick={() => setSelectedUser(null)} src={assets.arrow_icon} alt="" className='md:hidden max-w-7' />
         <img src={assets.help_icon} alt="" className='max-md:hidden max-w-5' />
       </div>
