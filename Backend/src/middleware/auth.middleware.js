@@ -22,12 +22,20 @@ export const verifyJWT = asyncHandler(async (req, res, next) => {
     throw new ApiError(401, "Invalid access token");
   }
 
-  const user = await User.findById(decodedToken?._id).select("-password -refreshToken");
+  const user = await User.findById(decodedToken?._id).select("-password -refreshToken -verificationToken -emailUpdateToken");
 
   if (!user) {
     throw new ApiError(401, "User not found");
   }
 
   req.user = user;
+  next();
+});
+
+export const requireVerifiedUser = asyncHandler(async (req, res, next) => {
+  if (req.user?.isVerified !== true) {
+    throw new ApiError(403, "Please verify your email before accessing chat features");
+  }
+
   next();
 });
