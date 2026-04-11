@@ -7,6 +7,7 @@ import cookieParser from "cookie-parser";
 import userRouter from "./routes/user.routes.js";
 import messageRouter from "./routes/messageRoutes.js";
 import { initSocket } from "./socket.js";
+import { backfillExistingUsersAsVerified } from "./utils/backfillVerifiedUsers.js";
 
 //creating Express app and HTTP server
 const app = express();
@@ -14,14 +15,50 @@ const server = http.createServer(app);
 const isVercelDeployment = Boolean(process.env.VERCEL);
 const PORT = process.env.PORT || 5000;
 
-const dbConnectionPromise = connectDB().catch((err) => {
-    console.log(" //server.js// MONGO DB connection failed !!!!", err);
-    throw err;
-});
+const getAllowedOrigins = () => {
+    const allowedOrigins = new Set(["http://localhost:5173", "http://127.0.0.1:5173"]);
+    const configuredOrigins = [process.env.CORS_ORIGIN, process.env.FRONTEND_URL];
+
+    configuredOrigins.forEach((value) => {
+        if (typeof value !== "string") {
+            return;
+        }
+
+        value
+            .split(",")
+            .map((origin) => origin.trim())
+            .filter((origin) => origin.length > 0 && origin !== "*")
+            .forEach((origin) => allowedOrigins.add(origin));
+    });
+
+    return Array.from(allowedOrigins);
+};
+
+const allowedOrigins = getAllowedOrigins();
+const corsOptions = {
+    origin(origin, callback) {
+        if (!origin || allowedOrigins.includes(origin)) {
+            callback(null, true);
+            return;
+        }
+
+        callback(new Error("Not allowed by CORS"));
+    },
+    credentials: true,
+};
+
+const dbConnectionPromise = connectDB()
+    .then(async () => {
+        await backfillExistingUsersAsVerified();
+    })
+    .catch((err) => {
+        console.log(" //server.js// MONGO DB connection failed !!!!", err);
+        throw err;
+    });
 
 // Initilizing socket.io server
 if (!isVercelDeployment) {
-    initSocket(server, process.env.CORS_ORIGIN);
+    initSocket(server, allowedOrigins);
 }
 
 //middleware setup
@@ -34,10 +71,7 @@ app.use(async (req, res, next) => {
     }
 });
 app.use(express.json({limit: "5mb"}));
-app.use(cors({
-    origin: process.env.CORS_ORIGIN,
-    credentials: true
-}));
+app.use(cors(corsOptions));
 app.use(cookieParser());
 
 app.use("/api/status", (req, res) => res.send("Server is running"));

@@ -23,6 +23,19 @@ const messageSchema = new Schema(
             trim: true,
             default: ""
         },
+        isDeleted: {
+            type: Boolean,
+            default: false
+        },
+        deletedAt: {
+            type: Date,
+            default: null
+        },
+        deletedBy: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "User",
+            default: null
+        },
         seen:{
             type: Boolean,
             default: false
@@ -32,6 +45,10 @@ const messageSchema = new Schema(
 );
 
 messageSchema.pre("validate", function () {
+  if (this.isDeleted) {
+    return;
+  }
+
   const text = typeof this.text === "string" ? this.text.trim() : "";
   const image = typeof this.image === "string" ? this.image.trim() : "";
 

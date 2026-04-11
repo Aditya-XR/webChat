@@ -106,21 +106,8 @@ export const AuthProvider = ({ children }) => {
                     return false;
                 }
 
-                const loginResponse = await axios.post("/api/v1/users/login", {
-                    email: normalizedCredentials.email,
-                    password: normalizedCredentials.password,
-                });
-
-                if (!loginResponse.data.success) {
-                    toast.error(loginResponse.data.message || "Login failed");
-                    return false;
-                }
-
-                const accessToken = loginResponse.data.data?.accessToken;
-                const user = loginResponse.data.data?.user;
-                localStorage.setItem("needsBioSetup", "true");
-                setAuthenticatedSession(user, accessToken);
-                toast.success(signUpResponse.data.message || "Signup successful");
+                localStorage.removeItem("needsBioSetup");
+                toast.success(signUpResponse.data.message || "Account created. Please verify your email.");
                 return true;
             }
 
@@ -203,9 +190,38 @@ export const AuthProvider = ({ children }) => {
         }
     };
 
+    const requestEmailChange = async (newEmail) => {
+        if (loading || activeRequestsCountRef.current > 0) return false;
+
+        try {
+            const normalizedNewEmail = typeof newEmail === "string" ? newEmail.trim() : newEmail;
+            const { data } = await axios.post("/api/v1/users/request-email-change", {
+                newEmail: normalizedNewEmail,
+            });
+
+            if (data.success) {
+                if (data.data) {
+                    setAuthUser(data.data);
+                } else {
+                    setAuthUser((prevUser) =>
+                        prevUser ? { ...prevUser, pendingEmail: normalizedNewEmail } : prevUser
+                    );
+                }
+
+                toast.success(data.message || "Check your new email to confirm the change.");
+                return true;
+            }
+
+            return false;
+        } catch (err) {
+            toast.error(err.response?.data?.message || "Failed to request email change");
+            return false;
+        }
+    };
+
     // Function to connect to Socket.IO server
     const connectSocket = (userData) => {
-        if (!backendUrl || !userData || socket?.connected) return;
+        if (!backendUrl || !userData || userData.isVerified === false || socket?.connected) return;
         const newSocket = io(backendUrl, {
             query: {
                 userId: userData._id,
@@ -332,6 +348,7 @@ export const AuthProvider = ({ children }) => {
         loginWithGoogle,
         logout,
         updateProfile,
+        requestEmailChange,
     };
 
     return (

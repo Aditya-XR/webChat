@@ -6,6 +6,22 @@ import { ApiResponse } from "../utils/ApiResponse.js";
 import { uploadOnCloudinary } from "../utils/cloudinary.js";
 import { getIo, userSocketMap } from "../socket.js";
 
+const sanitizeMessageForClient = (message) => {
+    if (!message) return message;
+
+    const plainMessage =
+        typeof message.toObject === "function"
+            ? message.toObject()
+            : { ...message };
+
+    if (plainMessage.isDeleted) {
+        plainMessage.text = "";
+        plainMessage.image = "";
+    }
+
+    return plainMessage;
+};
+
 const getUsersForSidebar = asyncHandler(async (req, res) => {
     const userId = req.user._id; // need to add auth middleware to get user from token
     const filteredUser = await User.find({_id: {$ne: userId}}).select("-password -refreshToken");
@@ -53,7 +69,7 @@ const getMessages = asyncHandler(async(req, res) => {
 
     return res
         .status(200)
-        .json(new ApiResponse(200, messages, "Messages fetched successfully"));
+        .json(new ApiResponse(200, messages.map(sanitizeMessageForClient), "Messages fetched successfully"));
 });
 
 //api to mark messages as seen when user opens the chat, this will be called from frontend when user opens the chat with a particular user
@@ -109,10 +125,55 @@ const sendMessage = asyncHandler(async(req, res) => {
 
 });
 
+const deleteMessage = asyncHandler(async (req, res) => {
+    const senderId = req.user._id;
+    const messageId = req.params.id;
+
+    const message = await Message.findOne({
+        _id: messageId,
+        senderId,
+    });
+
+    if (!message) {
+        throw new ApiError(404, "Message not found or not deletable");
+    }
+
+    if (message.isDeleted) {
+        return res
+            .status(200)
+            .json(new ApiResponse(200, sanitizeMessageForClient(message), "Message deleted successfully"));
+    }
+
+    message.isDeleted = true;
+    message.text = null;
+    message.image = null;
+    message.deletedAt = new Date();
+    message.deletedBy = senderId;
+    await message.save();
+
+    const sanitizedMessage = sanitizeMessageForClient(message);
+    const io = getIo();
+    const receiverSocketId = userSocketMap[message.receiverId.toString()];
+    const senderSocketId = userSocketMap[senderId.toString()];
+
+    if (receiverSocketId) {
+        io.to(receiverSocketId).emit("messageDeleted", sanitizedMessage);
+    }
+
+    if (senderSocketId) {
+        io.to(senderSocketId).emit("messageDeleted", sanitizedMessage);
+    }
+
+    return res
+        .status(200)
+        .json(new ApiResponse(200, sanitizedMessage, "Message deleted successfully"));
+});
+
 
 export{
     getUsersForSidebar,
     getMessages,
     markMessagesAsSeen,
-    sendMessage
+    sendMessage,
+    deleteMessage
 }

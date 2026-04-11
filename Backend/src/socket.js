@@ -29,6 +29,7 @@ export const initSocket = (server, corsOrigin) => {
     io = new Server(server, {
         cors: {
             origin: corsOrigin,
+            credentials: true,
         },
     });
 

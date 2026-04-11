@@ -45,6 +45,28 @@ const userSchema = new Schema(
         {
             type: String,
             default: null
+        },
+        isVerified:
+        {
+            type: Boolean,
+            default: false
+        },
+        verificationToken:
+        {
+            type: String,
+            default: null
+        },
+        pendingEmail:
+        {
+            type: String,
+            default: null,
+            lowercase: true,
+            trim: true,
+        },
+        emailUpdateToken:
+        {
+            type: String,
+            default: null
         }
         
     },
