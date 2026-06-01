@@ -55,11 +55,20 @@ const getMessages = asyncHandler(async(req, res) => {
     }
 
     //mark messages as seen (only those sent by selected user to me)
-    await Message.updateMany(
+    const result = await Message.updateMany(
         { senderId: selectedUserId, receiverId: myId, seen: false },
         { $set: { seen: true } }
     );
-//get all messages between me and selected user
+
+    if (result.modifiedCount > 0) {
+        // Notify the selected user (the sender of these messages) that they are read
+        const senderSocketId = userSocketMap[selectedUserId.toString()];
+        if (senderSocketId) {
+            getIo().to(senderSocketId).emit("messagesSeenAll", { senderId: selectedUserId, receiverId: myId });
+        }
+    }
+
+    //get all messages between me and selected user
     const messages = await Message.find({
         $or: [
             { senderId: myId, receiverId: selectedUserId },
@@ -74,8 +83,18 @@ const getMessages = asyncHandler(async(req, res) => {
 
 //api to mark messages as seen when user opens the chat, this will be called from frontend when user opens the chat with a particular user
 const markMessagesAsSeen = asyncHandler(async(req, res) => {
-    const {id} = req.params; //id of the user whose messages are to be marked as seen
-    await Message.findByIdAndUpdate(id, {seen: true});
+    const {id} = req.params; //id of the message to be marked as seen
+    const message = await Message.findById(id);
+    if (message && !message.seen) {
+        message.seen = true;
+        await message.save();
+
+        // Notify the sender that this message was seen
+        const senderSocketId = userSocketMap[message.senderId.toString()];
+        if (senderSocketId) {
+            getIo().to(senderSocketId).emit("messageSeen", { messageId: message._id, receiverId: message.receiverId });
+        }
+    }
     return res
         .status(200)
         .json(new ApiResponse(200, null, "Messages marked as seen"));

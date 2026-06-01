@@ -90,17 +90,15 @@ const ChatContainer = () => {
     }
   }
 
-  const handleSendMessage = async (e) => {
+  const handleSendMessage = (e) => {
     e.preventDefault();
     if (!input.trim()) return;
-    const didSend = await sendMessage(selectedUser._id, input, null);
-    if (!didSend) return;
+    sendMessage(selectedUser._id, input, null);
     setInput('');
-    getMessages(selectedUser._id);
   }
 
   //handle sending an image
-  const handleSendImage = async (e) => {
+  const handleSendImage = (e) => {
     const file = e.target.files[0];
     if (!file || !file.type.startsWith('image/'))
     {
@@ -108,13 +106,8 @@ const ChatContainer = () => {
       return;
     }
 
-    const didSend = await sendMessage(selectedUser._id, '', file);
-    if (!didSend) {
-      e.target.value = '';
-      return;
-    }
+    sendMessage(selectedUser._id, '', file);
     e.target.value = '';
-    getMessages(selectedUser._id);
   }
 
   useEffect(()=> {
@@ -170,6 +163,50 @@ const ChatContainer = () => {
     }
   }, [])
 
+  const renderTicks = (msg) => {
+    if (msg.status === "sending") {
+      return (
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor" className="w-3.5 h-3.5 text-stone-400 animate-spin">
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+      );
+    }
+
+    if (msg.status === "failed") {
+      return (
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor" className="w-3.5 h-3.5 text-red-500" title="Failed to send">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 7.5h.008v.008H12v-.008Z" />
+        </svg>
+      );
+    }
+
+    if (msg.seen) {
+      return (
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor" className="w-4 h-4 text-cyan-400" title="Seen">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M7 12l3.5 3.5L18 8.5" />
+          <path strokeLinecap="round" strokeLinejoin="round" d="M11 12l3.5 3.5L22 8.5" />
+        </svg>
+      );
+    }
+
+    const isReceiverOnline = onlineUsers.includes(msg.receiverId);
+    if (isReceiverOnline) {
+      return (
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor" className="w-4 h-4 text-stone-400" title="Delivered">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M7 12l3.5 3.5L18 8.5" />
+          <path strokeLinecap="round" strokeLinejoin="round" d="M11 12l3.5 3.5L22 8.5" />
+        </svg>
+      );
+    }
+
+    return (
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor" className="w-4 h-4 text-stone-500" title="Sent">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l3.5 3.5L20 8.5" />
+      </svg>
+    );
+  };
+
   return selectedUser ? (
     <div className='h-full overflow-scroll relative backdrop-blur-sm'>
 
@@ -219,10 +256,13 @@ const ChatContainer = () => {
                      ${isOwnMessage ? 'rounded-br-none' : 'rounded-bl-none'}`}>{msg.text}</p>
                 )}
               </div>
-              <div className='text-center text-xs'>
+              <div className='text-center text-xs flex flex-col items-center gap-1'>
                 <img src={isOwnMessage ? senderAvatar : receiverAvatar}
                   alt="" className='w-7 rounded-full' />
-                <p className='text-gray-500'>{formatMessageTime(msg.createdAt)}</p>
+                <div className='flex items-center justify-center gap-1 text-gray-500'>
+                  <span>{formatMessageTime(msg.createdAt)}</span>
+                  {isOwnMessage && !msg.isDeleted && renderTicks(msg)}
+                </div>
               </div>
             </div>
           )

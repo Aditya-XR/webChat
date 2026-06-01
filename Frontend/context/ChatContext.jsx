@@ -49,7 +49,9 @@ export const ChatProvider = ({ children }) => {
     //function to get all users from backend
     const getUsers = async () => {
         try {
-            const { data } = await axios.get("/api/v1/messages/getUsers");
+            const { data } = await axios.get("/api/v1/messages/getUsers", {
+                headers: { "x-no-loader": "true" }
+            });
             const fetchedUsers = Array.isArray(data?.data)
                 ? data.data
                 : Array.isArray(data?.users)
@@ -66,7 +68,9 @@ export const ChatProvider = ({ children }) => {
     //function to get messages for a selected user
     const getMessages = async (userId) => {
         try {
-            const { data } = await axios.get(`/api/v1/messages/messages/${userId}`);
+            const { data } = await axios.get(`/api/v1/messages/messages/${userId}`, {
+                headers: { "x-no-loader": "true" }
+            });
             if (data.success) {
                 setMessages(data.data);
             }
@@ -77,6 +81,27 @@ export const ChatProvider = ({ children }) => {
 
     //function to send message to a selected user
     const sendMessage = async (userId, text = "", image = null) => {
+        const tempId = `temp_${Date.now()}`;
+        let localImageUrl = "";
+
+        if (image instanceof File) {
+            localImageUrl = URL.createObjectURL(image);
+        }
+
+        const optimisticMessage = {
+            _id: tempId,
+            senderId: authUser._id,
+            receiverId: userId,
+            text,
+            image: localImageUrl,
+            createdAt: new Date().toISOString(),
+            seen: false,
+            status: "sending"
+        };
+
+        // Instantly append optimistic message
+        setMessages((prevMessages) => [...prevMessages, optimisticMessage]);
+
         try {
             const formData = new FormData();
             const normalizedText = typeof text === "string" ? text : "";
@@ -95,19 +120,36 @@ export const ChatProvider = ({ children }) => {
                 {
                     headers: {
                         "Content-Type": "multipart/form-data",
+                        "x-no-loader": "true"
                     },
                 }
             );
             if (data.success) {
-                // Handle successful message sending
                 const newMessage = data.data;
-                setMessages(prevMessages => [...prevMessages, newMessage]);
-                socket.emit("new-message", { to: userId, message: newMessage });
+                // Replace the temporary message with the real one
+                setMessages((prevMessages) =>
+                    prevMessages.map((msg) =>
+                        msg._id === tempId ? newMessage : msg
+                    )
+                );
+                socket?.emit("new-message", { to: userId, message: newMessage });
                 return true;
             }
 
+            // If success is false
+            setMessages((prevMessages) =>
+                prevMessages.map((msg) =>
+                    msg._id === tempId ? { ...msg, status: "failed" } : msg
+                )
+            );
             return false;
         } catch (error) {
+            // Mark as failed
+            setMessages((prevMessages) =>
+                prevMessages.map((msg) =>
+                    msg._id === tempId ? { ...msg, status: "failed" } : msg
+                )
+            );
             toast.error(error.response?.data?.message || error.message || "Failed to send message");
             return false;
         }
@@ -124,7 +166,13 @@ export const ChatProvider = ({ children }) => {
         applyMessageUpdate(optimisticMessage);
 
         try {
-            const { data } = await axios.put(`/api/v1/messages/delete-message/${messageId}`);
+            const { data } = await axios.put(
+                `/api/v1/messages/delete-message/${messageId}`,
+                {},
+                {
+                    headers: { "x-no-loader": "true" }
+                }
+            );
 
             if (data.success) {
                 applyMessageUpdate(data.data);
@@ -148,7 +196,9 @@ export const ChatProvider = ({ children }) => {
             if(selectedUser && newMessage.senderId === selectedUser._id) {
                 newMessage.seen = true;
                 setMessages((prevMessages) => [...prevMessages, newMessage]);
-                axios.put(`/api/v1/messages/mark-as-seen/${newMessage._id}`);
+                axios.put(`/api/v1/messages/mark-as-seen/${newMessage._id}`, {}, {
+                    headers: { "x-no-loader": "true" }
+                });
             }else{
                 setUnseenMessages((prevUnseenMessages) =>({
                     ...prevUnseenMessages,
@@ -160,6 +210,26 @@ export const ChatProvider = ({ children }) => {
         socket.on("messageDeleted", (deletedMessage) => {
             applyMessageUpdate(deletedMessage);
         });
+
+        socket.on("messageSeen", ({ messageId, receiverId }) => {
+            if (selectedUser && String(selectedUser._id) === String(receiverId)) {
+                setMessages((prevMessages) =>
+                    prevMessages.map((msg) =>
+                        msg._id === messageId ? { ...msg, seen: true } : msg
+                    )
+                );
+            }
+        });
+
+        socket.on("messagesSeenAll", ({ senderId, receiverId }) => {
+            if (selectedUser && String(selectedUser._id) === String(receiverId)) {
+                setMessages((prevMessages) =>
+                    prevMessages.map((msg) =>
+                        String(msg.receiverId) === String(receiverId) ? { ...msg, seen: true } : msg
+                    )
+                );
+            }
+        });
     }
 
     //function to unsubscribe from socket events to prevent memory leaks
@@ -167,6 +237,8 @@ export const ChatProvider = ({ children }) => {
         if(socket){
             socket.off("newMessage");
             socket.off("messageDeleted");
+            socket.off("messageSeen");
+            socket.off("messagesSeenAll");
         }
     }
 
