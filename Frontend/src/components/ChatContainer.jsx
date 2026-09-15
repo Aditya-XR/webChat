@@ -8,6 +8,17 @@ import toast from 'react-hot-toast'
 const ChatContainer = () => {
 
   const { messages, selectedUser, setSelectedUser, sendMessage, getMessages, deleteMessage } = useContext(ChatContext) // get selectedUser from context
+  const {
+    messages,
+    selectedUser,
+    setSelectedUser,
+    sendMessage,
+    getMessages,
+    deleteMessage,
+    blockContact,
+    unblockContact,
+    activeRelationship,
+  } = useContext(ChatContext)
   const { authUser, onlineUsers } = useContext(AuthContext) // get messages from context
 
   const scrollEnd = useRef()
@@ -207,6 +218,9 @@ const ChatContainer = () => {
     );
   };
 
+  const isBlockedByMe = Boolean(selectedUser?.isBlockedByMe || activeRelationship?.isBlockedByMe);
+  const isBlockedByOther = Boolean(selectedUser?.isBlockedByOther || activeRelationship?.isBlockedByOther);
+
   return selectedUser ? (
     <div className='h-full overflow-scroll relative backdrop-blur-sm'>
 
@@ -223,8 +237,37 @@ const ChatContainer = () => {
           </p>
           <p className='text-xs text-stone-300 md:text-sm'>
             {onlineUsers.includes(selectedUser._id) ? 'online' : 'offline'}
+            {isBlockedByMe
+              ? 'Blocked by you'
+              : isBlockedByOther
+                ? 'Unavailable'
+                : onlineUsers.includes(selectedUser._id)
+                  ? 'online'
+                  : 'offline'}
           </p>
         </div>
+
+        {/* Block / Unblock Action Button */}
+        {isBlockedByMe ? (
+          <button
+            onClick={() => unblockContact(selectedUser._id)}
+            className='px-3 py-1 rounded-full text-xs bg-gray-700 hover:bg-gray-600 text-white font-medium cursor-pointer transition'
+          >
+            Unblock
+          </button>
+        ) : !isBlockedByOther ? (
+          <button
+            onClick={() => {
+              if (window.confirm(`Block ${selectedUserName}? They will not be able to message you.`)) {
+                blockContact(selectedUser._id);
+              }
+            }}
+            className='px-2.5 py-1 rounded-full text-xs text-rose-400 hover:bg-rose-500/20 font-medium cursor-pointer transition'
+          >
+            Block
+          </button>
+        ) : null}
+
         <img onClick={() => setSelectedUser(null)} src={assets.arrow_icon} alt="" className='md:hidden max-w-7' />
         <img src={assets.help_icon} alt="" className='max-md:hidden max-w-5' />
       </div>
@@ -300,9 +343,38 @@ const ChatContainer = () => {
           <label htmlFor="image">
             <img src={assets.gallery_icon} alt="" className='w-5 mr-2 cursor-pointer' />
           </label>
+      {isBlockedByMe ? (
+        <div className='absolute bottom-0 left-0 right-0 bg-[#1f1933] border-t border-rose-900/50 p-3.5 text-center text-xs text-rose-300 flex items-center justify-center gap-2 shadow-lg'>
+          <span>You have blocked this contact.</span>
+          <button
+            onClick={() => unblockContact(selectedUser._id)}
+            className='underline font-bold text-white hover:text-violet-300 cursor-pointer'
+          >
+            Unblock
+          </button>
         </div>
         <img onClick={handleSendMessage} src={assets.send_button} alt="" className='w-7 cursor-pointer' />
       </div>
+      ) : isBlockedByOther ? (
+        <div className='absolute bottom-0 left-0 right-0 bg-[#1f1933] border-t border-gray-800 p-3.5 text-center text-xs text-gray-400 shadow-lg'>
+          You cannot reply to this conversation because this contact is unavailable.
+        </div>
+      ) : (
+        <div className='absolute bottom-0 left-0 right-0 flex items-center gap-3 p-3'>
+          <div className='flex-1 flex items-center bg-gray-100/12 px-3 rounded-full' >
+            <input onChange={(e) => setInput(e.target.value)} value={input}
+            onKeyDown={(e)=> e.key === "Enter" ? handleSendMessage(e) : null}
+             type="text" placeholder='Send a message'
+              className='flex-1 text-sm p-3 border-none rounded-lg outline-none
+            text-white placeholder-gray-400'/>
+            <input onChange={handleSendImage} type="file" id='image' accept='image/png, image/jpeg' hidden />
+            <label htmlFor="image">
+              <img src={assets.gallery_icon} alt="" className='w-5 mr-2 cursor-pointer' />
+            </label>
+          </div>
+          <img onClick={handleSendMessage} src={assets.send_button} alt="" className='w-7 cursor-pointer' />
+        </div>
+      )}
       
 
     </div>

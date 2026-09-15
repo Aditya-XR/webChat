@@ -114,8 +114,7 @@ webChat/
 │   │   ├── server.js
 │   │   └── socket.js
 │   ├── .env
-│   ├── package.json
-│   └── vercel.json
+│   └── package.json
 └── README.md
 ```
 

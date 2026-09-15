@@ -13,6 +13,9 @@ export const ChatProvider = ({ children }) => {
     const [selectedUser, setSelectedUser] = useState(null);
     const [unseenMessages, setUnseenMessages] = useState({});
 
+    const [pendingRequests, setPendingRequests] = useState({ incoming: [], outgoing: [] });
+    const [activeRelationship, setActiveRelationship] = useState(null);
+
     const {socket, axios, authUser} = useContext(AuthContext);
 
     const applyMessageUpdate = (updatedMessage) => {
@@ -47,6 +50,7 @@ export const ChatProvider = ({ children }) => {
     });
 
     //function to get all users from backend
+    //function to get all accepted contacts from backend
     const getUsers = async () => {
         try {
             const { data } = await axios.get("/api/v1/messages/getUsers", {
@@ -62,8 +66,147 @@ export const ChatProvider = ({ children }) => {
             setUnseenMessages(data?.unseenMessages || {});
         } catch (error) {
             toast.error(error.response?.data?.message || error.message || "Failed to fetch users");
+            toast.error(error.response?.data?.message || error.message || "Failed to fetch contacts");
         }
     }
+
+    //function to get pending requests (incoming and outgoing)
+    const getPendingRequests = async () => {
+        try {
+            const { data } = await axios.get("/api/v1/contacts/requests", {
+                headers: { "x-no-loader": "true" }
+            });
+            if (data.success) {
+                setPendingRequests(data.data || { incoming: [], outgoing: [] });
+            }
+        } catch (error) {
+            console.error("Failed to fetch pending requests", error);
+        }
+    };
+
+    //function to search registered users for invitations
+    const searchUsers = async (query) => {
+        try {
+            const { data } = await axios.get(`/api/v1/contacts/search?q=${encodeURIComponent(query)}`, {
+                headers: { "x-no-loader": "true" }
+            });
+            return data?.data || [];
+        } catch (error) {
+            toast.error(error.response?.data?.message || "Search failed");
+            return [];
+        }
+    };
+
+    //function to send a chat invitation
+    const sendInvite = async (recipientId) => {
+        try {
+            const { data } = await axios.post(`/api/v1/contacts/invite/${recipientId}`);
+            if (data.success) {
+                toast.success(data.message || "Invitation sent successfully");
+                getPendingRequests();
+                return true;
+            }
+            return false;
+        } catch (error) {
+            toast.error(error.response?.data?.message || error.message || "Failed to send invitation");
+            return false;
+        }
+    };
+
+    //function to accept a chat invitation
+    const acceptInvite = async (contactId) => {
+        try {
+            const { data } = await axios.put(`/api/v1/contacts/accept/${contactId}`);
+            if (data.success) {
+                toast.success("Invitation accepted! Added to contacts.");
+                getUsers();
+                getPendingRequests();
+                return true;
+            }
+            return false;
+        } catch (error) {
+            toast.error(error.response?.data?.message || error.message || "Failed to accept invitation");
+            return false;
+        }
+    };
+
+    //function to decline/cancel an invitation
+    const rejectInvite = async (contactId) => {
+        try {
+            const { data } = await axios.delete(`/api/v1/contacts/reject/${contactId}`);
+            if (data.success) {
+                toast.success("Invitation removed");
+                getPendingRequests();
+                return true;
+            }
+            return false;
+        } catch (error) {
+            toast.error(error.response?.data?.message || error.message || "Failed to remove invitation");
+            return false;
+        }
+    };
+
+    //function to block a user
+    const blockContact = async (userId) => {
+        try {
+            const { data } = await axios.post(`/api/v1/contacts/block/${userId}`);
+            if (data.success) {
+                toast.success("User blocked");
+                getUsers();
+                if (selectedUser && selectedUser._id === userId) {
+                    setSelectedUser((prev) => ({
+                        ...prev,
+                        isBlocked: true,
+                        isBlockedByMe: true,
+                        isBlockedByOther: false,
+                        blockedBy: authUser?._id,
+                    }));
+                    setActiveRelationship({
+                        status: "blocked",
+                        isBlockedByMe: true,
+                        isBlockedByOther: false,
+                        blockedBy: authUser?._id,
+                    });
+                }
+                return true;
+            }
+            return false;
+        } catch (error) {
+            toast.error(error.response?.data?.message || error.message || "Failed to block user");
+            return false;
+        }
+    };
+
+    //function to unblock a user
+    const unblockContact = async (userId) => {
+        try {
+            const { data } = await axios.post(`/api/v1/contacts/unblock/${userId}`);
+            if (data.success) {
+                toast.success("User unblocked");
+                getUsers();
+                if (selectedUser && selectedUser._id === userId) {
+                    setSelectedUser((prev) => ({
+                        ...prev,
+                        isBlocked: false,
+                        isBlockedByMe: false,
+                        isBlockedByOther: false,
+                        blockedBy: null,
+                    }));
+                    setActiveRelationship({
+                        status: "accepted",
+                        isBlockedByMe: false,
+                        isBlockedByOther: false,
+                        blockedBy: null,
+                    });
+                }
+                return true;
+            }
+            return false;
+        } catch (error) {
+            toast.error(error.response?.data?.message || error.message || "Failed to unblock user");
+            return false;
+        }
+    };
 
     //function to get messages for a selected user
     const getMessages = async (userId) => {
@@ -73,6 +216,7 @@ export const ChatProvider = ({ children }) => {
             });
             if (data.success) {
                 setMessages(data.data);
+                setActiveRelationship(data.relationship || null);
             }
         } catch (error) {
             toast.error(error.response?.data?.message || error.message || "Failed to fetch messages");
@@ -230,6 +374,70 @@ export const ChatProvider = ({ children }) => {
                 );
             }
         });
+
+        // Contact event listeners
+        socket.on("contactRequestReceived", (contact) => {
+            const senderName = contact?.requester?.fullName || "A user";
+            toast(`💬 ${senderName} sent you a chat invitation!`, {
+                duration: 5000,
+                icon: "👋",
+            });
+            getPendingRequests();
+        });
+
+        socket.on("contactRequestAccepted", (contact) => {
+            const otherName =
+                contact?.requester?._id === authUser?._id
+                    ? contact?.recipient?.fullName
+                    : contact?.requester?.fullName;
+
+            toast.success(`${otherName || "User"} accepted your chat invitation!`);
+            getUsers();
+            getPendingRequests();
+        });
+
+        socket.on("contactRequestRejected", () => {
+            getPendingRequests();
+        });
+
+        socket.on("contactBlocked", ({ userId, blockedBy }) => {
+            getUsers();
+            if (selectedUser && (selectedUser._id === userId || selectedUser._id === blockedBy)) {
+                const isByMe = String(blockedBy) === String(authUser?._id);
+                setSelectedUser((prev) => prev ? {
+                    ...prev,
+                    isBlocked: true,
+                    isBlockedByMe: isByMe,
+                    isBlockedByOther: !isByMe,
+                    blockedBy,
+                } : null);
+                setActiveRelationship({
+                    status: "blocked",
+                    isBlockedByMe: isByMe,
+                    isBlockedByOther: !isByMe,
+                    blockedBy,
+                });
+            }
+        });
+
+        socket.on("contactUnblocked", ({ userId }) => {
+            getUsers();
+            if (selectedUser && selectedUser._id === userId) {
+                setSelectedUser((prev) => prev ? {
+                    ...prev,
+                    isBlocked: false,
+                    isBlockedByMe: false,
+                    isBlockedByOther: false,
+                    blockedBy: null,
+                } : null);
+                setActiveRelationship({
+                    status: "accepted",
+                    isBlockedByMe: false,
+                    isBlockedByOther: false,
+                    blockedBy: null,
+                });
+            }
+        });
     }
 
     //function to unsubscribe from socket events to prevent memory leaks
@@ -239,6 +447,11 @@ export const ChatProvider = ({ children }) => {
             socket.off("messageDeleted");
             socket.off("messageSeen");
             socket.off("messagesSeenAll");
+            socket.off("contactRequestReceived");
+            socket.off("contactRequestAccepted");
+            socket.off("contactRequestRejected");
+            socket.off("contactBlocked");
+            socket.off("contactUnblocked");
         }
     }
 
@@ -248,7 +461,13 @@ export const ChatProvider = ({ children }) => {
             unsubscribeFromMessage();
         }
     }, [socket, selectedUser])
+    }, [socket, selectedUser, authUser])
 
+    useEffect(() => {
+        if (authUser) {
+            getPendingRequests();
+        }
+    }, [authUser]);
 
     const value = {
         messages,
@@ -259,7 +478,18 @@ export const ChatProvider = ({ children }) => {
         setSelectedUser,
         unseenMessages,
         setUnseenMessages,
+        pendingRequests,
+        setPendingRequests,
+        activeRelationship,
+        setActiveRelationship,
         getUsers,
+        getPendingRequests,
+        searchUsers,
+        sendInvite,
+        acceptInvite,
+        rejectInvite,
+        blockContact,
+        unblockContact,
         getMessages,
         sendMessage,
         deleteMessage,
