@@ -20,10 +20,7 @@ const Sidebar = () => {
         rejectInvite,
     } = useContext(ChatContext);
 
-    const {getUsers, users, selectedUser, setSelectedUser, unseenMessages, setUnseenMessages} = useContext(ChatContext);
     const { logout, onlineUsers } = useContext(AuthContext);
-
-    const {logout, onlineUsers} = useContext(AuthContext);
 
     const [inputValue, setInputValue] = useState("");
     const [showInviteModal, setShowInviteModal] = useState(false);
@@ -81,21 +78,10 @@ const Sidebar = () => {
     const incomingCount = pendingRequests?.incoming?.length || 0;
 
     return (
-        <div className={`bg-[#8185B2]/10 h-full p-5 rounded-r-xl overflow-y-scroll text-white ${selectedUser ? "max-md:hidden" : ''}`}>
-            <div className='pb-5'>
         <div className={`bg-[#8185B2]/10 h-full p-5 rounded-r-xl overflow-y-scroll text-white flex flex-col ${selectedUser ? "max-md:hidden" : ''}`}>
             {/* Top Bar */}
             <div className='pb-4 border-b border-gray-700/40'>
                 <div className='flex justify-between items-center'>
-                    <img src={assets.logo} alt="Logo" className='max-w-40' />
-                    <div className='relative group'>
-                        <img src={assets.menu_icon} alt="Menu" className='h-5 w-5 cursor-pointer' />
-                        <div className='absolute top-0 right-0 pt-8 z-20 hidden
-                    group-hover:block'>
-                            <div className='w-32 p-5 rounded-md bg-[#282142] border border-gray-600 text-gray-100'>
-                                <p onClick={() => navigate('/profile')} className='cursor-pointer text-sm'>Edit Profile</p>
-                                <hr className='my-2 border-t border-gray-500' />
-                                <p onClick={() => logout()} className='cursor-pointer text-sm'>Logout</p>
                     <img src={assets.logo} alt="Logo" className='max-w-36' />
                     
                     <div className='flex items-center gap-3'>
@@ -149,10 +135,6 @@ const Sidebar = () => {
                     </div>
                 </div>
 
-                <div className='bg-[#282142] rounded-full flex items-center gap-2 py-3 px-4 mt-5'>
-                    <img src={assets.search_icon} alt="Search" className="w-3" />
-                    <input onChange={(e) => setInputValue(e.target.value)} type="text" className=' bg-transparent border-none outline-none
-                     text-white text-xs placeholder-[#c8c8c8] flex-1' placeholder='Search User...' />
                 {/* Search Contacts Input */}
                 <div className='bg-[#282142] rounded-full flex items-center gap-2 py-2.5 px-4 mt-4 border border-gray-700/50'>
                     <img src={assets.search_icon} alt="Search" className="w-3 opacity-60" />
@@ -166,21 +148,6 @@ const Sidebar = () => {
                 </div>
             </div>
 
-            <div className='flex flex-col'>
-                {filteredUsers.map((user, index)=>(
-                    <div onClick={()=> {setSelectedUser(user); setUnseenMessages(prev=>
-                    ({...prev, [user._id]: 0}))}}
-                        key={index} className={`relative flex items-center gap-2 p-2 pl-4
-                         rounded cursor-pointer max-sm:text-sm ${selectedUser?._id === user._id && 'bg-[#282142]/50'}`}>
-                        <img src={user?.profilePic || assets.avatar_icon} alt=""
-                        className='w-8.75 aspect-square rounded-full'/>
-                        <div className='flex flex-col leading-5'>
-                            <p>{user.fullName}</p>
-                            {
-                                onlineUsers.includes(user._id)
-                                ? <span className='text-green-400 text-xs'>Online</span>
-                                : <span className='text-neutral-400 text-xs'>Offline</span>
-                            }
             {/* Contacts List Header */}
             <div className='flex justify-between items-center pt-3 pb-2 text-[11px] font-semibold text-gray-400 uppercase tracking-wider'>
                 <span>Contacts ({users.length})</span>
@@ -265,9 +232,6 @@ const Sidebar = () => {
                 )}
             </div>
 
-                        {unseenMessages[user._id] > 0 && (
-                            <p className='absolute top-4 right-4 text-xs h-5 w-5 flex justify-center items-center rounded-full bg-violet-500/50'>
-                                {unseenMessages[user._id]}
             {/* MODAL 1: Invite New Contact Modal */}
             {showInviteModal && (
                 <div className='fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4'>
@@ -389,7 +353,6 @@ const Sidebar = () => {
                             <p className='text-xs font-semibold text-gray-300 uppercase tracking-wider mb-2'>
                                 Received ({incomingCount})
                             </p>
-                        )}
 
                             <div className='max-h-52 overflow-y-auto space-y-2 pr-1'>
                                 {incomingCount === 0 ? (
@@ -454,15 +417,10 @@ const Sidebar = () => {
                             </div>
                         </div>
                     </div>
-                ))}
-            </div>        
                 </div>
             )}
         </div>
-    )
-}
     );
 };
 
-export default Sidebar
 export default Sidebar;

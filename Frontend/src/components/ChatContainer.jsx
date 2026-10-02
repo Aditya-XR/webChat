@@ -7,7 +7,6 @@ import toast from 'react-hot-toast'
 
 const ChatContainer = () => {
 
-  const { messages, selectedUser, setSelectedUser, sendMessage, getMessages, deleteMessage } = useContext(ChatContext) // get selectedUser from context
   const {
     messages,
     selectedUser,
@@ -236,7 +235,6 @@ const ChatContainer = () => {
             {selectedUserName}
           </p>
           <p className='text-xs text-stone-300 md:text-sm'>
-            {onlineUsers.includes(selectedUser._id) ? 'online' : 'offline'}
             {isBlockedByMe
               ? 'Blocked by you'
               : isBlockedByOther
@@ -332,17 +330,6 @@ const ChatContainer = () => {
       )}
 
       {/* ----- bottom area ----- */}
-      <div className='absolute bottom-0 left-0 right-0 flex items-center gap-3 p-3'>
-        <div className='flex-1 flex items-center bg-gray-100/12 px-3 rounded-full' >
-          <input onChange={(e) => setInput(e.target.value)} value={input}
-          onKeyDown={(e)=> e.key === "Enter" ? handleSendMessage(e) : null}
-           type="text" placeholder='Send a message'
-            className='flex-1 text-sm p-3 border-none rounded-lg outline-none
-          text-white placeholder-gray-400'/>
-          <input onChange={handleSendImage} type="file" id='image' accept='image/png, image/jpeg' hidden />
-          <label htmlFor="image">
-            <img src={assets.gallery_icon} alt="" className='w-5 mr-2 cursor-pointer' />
-          </label>
       {isBlockedByMe ? (
         <div className='absolute bottom-0 left-0 right-0 bg-[#1f1933] border-t border-rose-900/50 p-3.5 text-center text-xs text-rose-300 flex items-center justify-center gap-2 shadow-lg'>
           <span>You have blocked this contact.</span>
@@ -353,8 +340,6 @@ const ChatContainer = () => {
             Unblock
           </button>
         </div>
-        <img onClick={handleSendMessage} src={assets.send_button} alt="" className='w-7 cursor-pointer' />
-      </div>
       ) : isBlockedByOther ? (
         <div className='absolute bottom-0 left-0 right-0 bg-[#1f1933] border-t border-gray-800 p-3.5 text-center text-xs text-gray-400 shadow-lg'>
           You cannot reply to this conversation because this contact is unavailable.

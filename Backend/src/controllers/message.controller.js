@@ -24,11 +24,6 @@ const sanitizeMessageForClient = (message) => {
 };
 
 const getUsersForSidebar = asyncHandler(async (req, res) => {
-    const userId = req.user._id; // need to add auth middleware to get user from token
-    const filteredUser = await User.find({_id: {$ne: userId}}).select("-password -refreshToken");
-    
-    //count unseen messages for each user
-    //the below code can be optimized further using aggregation pipeline
     const userId = req.user._id;
 
     // Find all accepted or blocked contacts for this user
@@ -42,9 +37,6 @@ const getUsersForSidebar = asyncHandler(async (req, res) => {
 
     const contactUsers = [];
     const unseenMessages = {};
-    const promises = filteredUser.map(async (user) =>{
-        const messages = await Message.find({
-            senderId: user._id, 
 
     for (const contact of contacts) {
         const isRequester = contact.requester._id.equals(userId);
@@ -64,19 +56,13 @@ const getUsersForSidebar = asyncHandler(async (req, res) => {
         const unseenCount = await Message.countDocuments({
             senderId: otherUser._id,
             receiverId: userId,
-            seen: false});
-        if(messages.length > 0){
-            unseenMessages[user._id] = messages.length;
             seen: false,
         });
 
         if (unseenCount > 0) {
             unseenMessages[otherUser._id] = unseenCount;
         }
-    });
-    await Promise.all(promises);
 
-    const response = new ApiResponse(200, filteredUser, "Sidebar users fetched successfully");
         contactUsers.push(otherUser);
     }
 
@@ -118,9 +104,6 @@ const getMessages = asyncHandler(async(req, res) => {
         ]
     }).sort({ createdAt: 1 });
 
-    return res
-        .status(200)
-        .json(new ApiResponse(200, messages.map(sanitizeMessageForClient), "Messages fetched successfully"));
     const relationship = contact
         ? {
             status: contact.status,

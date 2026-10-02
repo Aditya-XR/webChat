@@ -49,7 +49,6 @@ export const ChatProvider = ({ children }) => {
         deletedBy: authUser?._id || message?.deletedBy || null,
     });
 
-    //function to get all users from backend
     //function to get all accepted contacts from backend
     const getUsers = async () => {
         try {
@@ -65,7 +64,6 @@ export const ChatProvider = ({ children }) => {
             setUsers(fetchedUsers);
             setUnseenMessages(data?.unseenMessages || {});
         } catch (error) {
-            toast.error(error.response?.data?.message || error.message || "Failed to fetch users");
             toast.error(error.response?.data?.message || error.message || "Failed to fetch contacts");
         }
     }
@@ -460,7 +458,6 @@ export const ChatProvider = ({ children }) => {
         return () => {
             unsubscribeFromMessage();
         }
-    }, [socket, selectedUser])
     }, [socket, selectedUser, authUser])
 
     useEffect(() => {
