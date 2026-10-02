@@ -1,16 +1,29 @@
-# React + Vite
+# WebChat Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+React 19 + Vite client for WebChat. Features, architecture, the API, and full setup instructions are in the [root README](../README.md).
 
-Currently, two official plugins are available:
+## Scripts
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+| Command | Description |
+| --- | --- |
+| `npm run dev` | Start the Vite dev server at http://localhost:5173 |
+| `npm run build` | Build for production into `dist/` |
+| `npm run preview` | Serve the production build locally |
+| `npm run lint` | Run ESLint |
 
-## React Compiler
+## Environment
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+Create `Frontend/.env`:
 
-## Expanding the ESLint configuration
+| Variable | Required | Description |
+| --- | --- | --- |
+| `VITE_BACKEND_URL` | Yes | Backend base URL for API calls and Socket.IO, e.g. `http://localhost:5000` |
+| `VITE_GOOGLE_CLIENT_ID` | For Google sign-in | Google OAuth Web Client ID used by Google Identity Services |
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+## Layout
+
+- `context/AuthContext.jsx`: session, Axios defaults and loader interceptors, Socket.IO connection
+- `context/ChatContext.jsx`: contacts, invites, messages, unread counts, socket event handlers
+- `src/pages/`: Home, Login, Profile, and VerifyEmail screens
+- `src/components/`: contact sidebar, chat window, profile sidebar, Google sign-in button, global loader
+- `vercel.json`: rewrites every path to `index.html` so client-side routes such as `/verify-email` work on reload
